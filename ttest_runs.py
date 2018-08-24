@@ -4,14 +4,30 @@ from scipy import stats
 import pandas as pd
 import subprocess
 from io import BytesIO
+from pathlib import Path
 
 
 def eprint(*args, **kwargs):
-    print(*args, **kwargs, file=sys.stderr)
+    print(*args, **kwargs, file=sys.stderr, flush=True)
+
+
+def gdeval_version():
+    gdeval = str(Path(__file__).parent / 'gdeval.pl')
+    args = [gdeval, '-version']
+    proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    eprint(proc.stdout.decode('utf-8').strip())
+
+
+def trec_eval_version():
+    trec_eval = str(Path(__file__).parent / 'trec_eval')
+    args = [trec_eval, '--version']
+    proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    eprint(proc.stderr.decode('utf-8').strip())
 
 
 def gdeval(k, qrel_path, run_path):
-    args = ['gdeval', '-k', str(k), qrel_path, run_path]
+    gdeval = str(Path(__file__).parent / 'gdeval.pl')
+    args = [gdeval, '-k', str(k), qrel_path, run_path]
     eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     df = pd.read_csv(BytesIO(proc.stdout))
@@ -42,7 +58,8 @@ def gdeval_all(qrel_path, run_path):
 
 
 def trec_eval(measure, qrel_path, run_path):
-    args = ['trec_eval', '-q', '-m', measure, qrel_path, run_path]
+    trec_eval = str(Path(__file__).parent / 'trec_eval')
+    args = [trec_eval, '-q', '-m', measure, qrel_path, run_path]
     eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     df = pd.read_csv(
@@ -101,6 +118,8 @@ def sort_measures(measures):
 
 def main():
     args = parse_args()
+    trec_eval_version()
+    gdeval_version()
 
     table_lines = []
     for m in args.measure:
