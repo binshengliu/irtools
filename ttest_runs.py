@@ -13,21 +13,21 @@ def eprint(*args, **kwargs):
 
 
 def gdeval_version():
-    gdeval = str(Path(__file__).parent / 'gdeval.pl')
+    gdeval = str(Path(__file__).resolve().with_name('gdeval.pl'))
     args = [gdeval, '-version']
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     eprint(proc.stdout.decode('utf-8').strip())
 
 
 def trec_eval_version():
-    trec_eval = str(Path(__file__).parent / 'trec_eval')
+    trec_eval = str(Path(__file__).resolve().with_name('trec_eval'))
     args = [trec_eval, '--version']
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     eprint(proc.stderr.decode('utf-8').strip())
 
 
 def gdeval(k, qrel_path, run_path):
-    gdeval = str(Path(__file__).parent / 'gdeval.pl')
+    gdeval = str(Path(__file__).resolve().with_name('gdeval.pl'))
     args = [gdeval, '-k', str(k), qrel_path, run_path]
     eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -59,7 +59,7 @@ def gdeval_all(qrel_path, run_path):
 
 
 def trec_eval(measure, qrel_path, run_path):
-    trec_eval = str(Path(__file__).parent / 'trec_eval')
+    trec_eval = str(Path(__file__).resolve().with_name('trec_eval'))
     args = [trec_eval, '-q', '-m', measure, qrel_path, run_path]
     eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
