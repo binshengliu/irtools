@@ -4,7 +4,6 @@ import sys
 from scipy import stats
 import pandas as pd
 import subprocess
-from io import BytesIO
 from pathlib import Path
 
 
@@ -31,18 +30,24 @@ def gdeval(k, qrel_path, run_path):
     args = [gdeval, '-k', str(k), qrel_path, run_path]
     eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    df = pd.read_csv(BytesIO(proc.stdout))
-    qno_results = {}
+    lines = proc.stdout.decode('utf-8').splitlines()
+    _, topic, ndcg, err = lines[0].split(',')
+    if topic != 'topic':
+        raise ValueError('Unrecognizable gdeval output')
+
     aggregated = {}
-    for _, row in df.iterrows():
-        if row['topic'] == 'amean':
-            aggregated[df.columns[2]] = row[df.columns[2]]
-            aggregated[df.columns[3]] = row[df.columns[3]]
-            continue
-        qno_results.setdefault(row['topic'],
-                               {})[df.columns[2]] = row[df.columns[2]]
-        qno_results.setdefault(row['topic'],
-                               {})[df.columns[3]] = row[df.columns[3]]
+    _, qno, ndcg_value, err_value = lines[-1].split(',')
+    if qno != 'amean':
+        raise ValueError('Unrecognizable gdeval output')
+    aggregated[ndcg] = float(ndcg_value)
+    aggregated[err] = float(err_value)
+
+    qno_results = {}
+    for line in lines[1:-1]:
+        _, qno, ndcg_value, err_value = line.split(',')
+        qno_results.setdefault(qno, {})
+        qno_results[qno][ndcg] = float(ndcg_value)
+        qno_results[qno][err] = float(err_value)
 
     return aggregated, qno_results
 
@@ -63,17 +68,17 @@ def trec_eval(measure, qrel_path, run_path):
     args = [trec_eval, '-q', '-m', measure, qrel_path, run_path]
     eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    df = pd.read_csv(
-        BytesIO(proc.stdout),
-        delim_whitespace=True,
-        names=['measure', 'qno', 'value'])
-    qno_results = {}
+    lines = proc.stdout.decode('utf-8').splitlines()
+
     aggregated = {}
-    for _, row in df.iterrows():
-        if row['qno'] == 'all':
-            aggregated[row['measure']] = row['value']
-            continue
-        qno_results.setdefault(row['qno'], {})[row['measure']] = row['value']
+    qno_results = {}
+    for line in lines:
+        measure, qno, value = line.split()
+        if qno == 'all':
+            aggregated[measure] = float(value)
+        else:
+            qno_results.setdefault(qno, {})
+            qno_results[qno][measure] = float(value)
 
     return aggregated, qno_results
 
