@@ -19,7 +19,9 @@ def trec_eval(measure, qrel_path, run_path):
     aggregated = {}
     for line in proc.stdout.decode('utf-8').splitlines():
         measure, qno, value = line.split()
-        aggregated[measure] = value
+        if qno != 'all':
+            raise ValueError('Unrecognizable trec_eval output')
+        aggregated[measure] = float(value)
 
     return aggregated
 
@@ -30,13 +32,12 @@ def gdeval(k, qrel_path, run_path):
     eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     lines = proc.stdout.decode('utf-8').splitlines()
-    _, _, ndcg, err = lines[0].split(',')
+    _, _, *measures = lines[0].split(',')
 
     aggregated = {}
-    for line in lines[1:]:
-        _, _, ndcg_value, err_value = line.split(',')
-        aggregated[ndcg] = ndcg_value
-        aggregated[err] = err_value
+    _, qno, *values = lines[-1].split(',')
+    for m, v in zip(measures, values):
+        aggregated[m] = float(v)
 
     return aggregated
 

@@ -128,13 +128,13 @@ def main():
     gdeval_version()
 
     table_lines = []
-    for m in args.measure:
-        if m == 'gdeval':
+    for measure in args.measure:
+        if measure == 'gdeval':
             aggregated1, result1 = gdeval_all(args.qrel, args.run1)
             aggregated2, result2 = gdeval_all(args.qrel, args.run2)
         else:
-            aggregated1, result1 = trec_eval(m, args.qrel, args.run1)
-            aggregated2, result2 = trec_eval(m, args.qrel, args.run2)
+            aggregated1, result1 = trec_eval(measure, args.qrel, args.run1)
+            aggregated2, result2 = trec_eval(measure, args.qrel, args.run2)
         query_ids = list(set(result1.keys()) & set(result2.keys()))
 
         ret_measures = list(next(iter(result1.values())).keys())
@@ -146,12 +146,12 @@ def main():
 
             _, pvalue = stats.ttest_rel(scores1, scores2)
 
-            display = ret_measure.replace('_cut_', '@').upper()
-            if m == 'gdeval':
-                display = 'GDEVAL-' + display
-            elif m.startswith('ndcg'):
-                display = 'TREC-' + display
-            table_lines.append((display, aggregated1[ret_measure],
+            m = ret_measure.replace('_cut_', '@')
+            m = m.replace('_', '@')
+            m = 'GDEVAL-' + m if measure.startswith('gdeval') else m
+            m = 'TREC-' + m if measure.startswith('ndcg') else m
+            m = m.upper()
+            table_lines.append((m, aggregated1[ret_measure],
                                 aggregated2[ret_measure], pvalue))
 
     df = pd.DataFrame(
