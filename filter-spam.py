@@ -2,10 +2,14 @@
 import sys
 import argparse
 import os
+from pathlib import Path
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Filter spams from run files')
+    parser = argparse.ArgumentParser(
+        description='Filter spams from run files',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
     parser.add_argument(
         '--score',
         '-s',
@@ -13,93 +17,106 @@ def parse_args():
         metavar='[1-100]',
         choices=range(1, 101),
         required=True,
-        help='Score of spam to filter out')
-
-    parser.add_argument(
-        '--run',
-        '-r',
-        metavar='FILE',
-        nargs='+',
-        type=argparse.FileType('r'),
-        help='Run files')
+        help='Documents with a score lower than the value will be removed.')
 
     parser.add_argument(
         '--count',
         '-c',
         type=int,
-        required=True,
-        help='Number of results to keep after filtering')
+        help='Number of records per query to keep after filtering. '
+        'Default to keep all.')
 
     parser.add_argument(
-        '--suffix',
-        default='s{score}_c{count}_filtered',
-        help='init.run -> init.s50_c1000_filtered.run')
+        '--output',
+        '-o',
+        metavar='DIRECTORY',
+        default=Path('.' + os.sep),
+        type=Path,
+        help='Directory to save filtered run files.')
+
+    parser.add_argument(
+        '--force',
+        '-f',
+        action='store_true',
+        help='Overwrite existing filtered run files.')
+
+    parser.add_argument(
+        'score_file',
+        type=Path,
+        metavar='SCORE-FILE',
+        help='File containing document scores '
+        'in the format of \'percentile-score clueweb-docid\'. '
+        'Check https://plg.uwaterloo.ca/~gvcormac/clueweb09spam/ '
+        'and https://www.mansci.uwaterloo.ca/~msmucker/cw12spam/')
+
+    parser.add_argument(
+        'run', metavar='RUN', nargs='+', type=Path, help='Run files')
 
     args = parser.parse_args()
 
     return args
 
 
-def filter_with_score(run_lines, score_dict, threshold, count):
+def filter_with_score(run_path, score_dict, threshold, count):
     filtered = []
-    for line in run_lines:
+    qno_count = {}
+    for line in run_path.read_text().splitlines():
         qno, _, docno, _, _, _ = line.split()
         if docno not in score_dict:
-            eprint('Warning: {} score not found.'.format(docno))
             continue
 
-        if score_dict[docno] >= threshold:
-            filtered.append(line)
+        if score_dict[docno] < threshold:
+            continue
 
-    trimmed = []
-    if count:
-        qno_count = {}
-        for line in filtered:
-            qno, _, docno, _, _, _ = line.split()
+        if count and qno_count.get(qno, 0) >= count:
+            continue
 
-            if qno_count.get(qno, 0) >= count:
-                continue
+        filtered.append(line)
+        qno_count.setdefault(qno, 0)
+        qno_count[qno] += 1
 
-            trimmed.append(line)
-            qno_count.setdefault(qno, 0)
-            qno_count[qno] += 1
-    else:
-        trimmed = filtered
-
-    return trimmed
+    return filtered
 
 
 def eprint(*args, **kwargs):
-    print(*args, **kwargs, file=sys.stderr)
+    print(*args, **kwargs, file=sys.stderr, flush=True)
+
+
+def filtered_path(directory, orig):
+    return directory.joinpath(orig.with_suffix('.filtered' + orig.suffix).name)
 
 
 def main():
     args = parse_args()
-    spam_filter = '/research/remote/petabyte/users/' \
-        'binsheng/CW09B_Spam_Score/ClueWeb09B_Spam_Fusion.txt'
 
-    eprint('Reading CW09B scores {}'.format(spam_filter))
+    if not args.force:
+        if all([filtered_path(args.output, run).exists() for run in args.run]):
+            eprint('All the files have been filtered before. '
+                   'Check \"{}{}\" directory.'.format(args.output, os.sep))
+            return
+
+    eprint('Reading {}'.format(args.score_file))
     scores_dict = {}
-    with open(spam_filter, 'r') as f:
-        for line in f:
-            score, docno = line.split()
-            scores_dict[docno] = int(score)
+    for line in args.score_file.read_text().splitlines():
+        score, docno = line.split()
+        scores_dict[docno] = int(score)
 
     for run in args.run:
-        run_lines = run.readlines()
-        eprint('Filtering {} with score {}'.format(run.name, args.score))
-        filtered = filter_with_score(run_lines, scores_dict, args.score,
-                                     args.count)
-        if not filtered:
-            eprint('{} nothing left'.format(args.score))
+        output_name = args.output.joinpath(
+            run.with_suffix('.filtered' + run.suffix).name)
+        if not args.force and output_name.exists():
+            eprint('{} already exists.'.format(output_name))
             continue
 
-        suffix = args.suffix.format(score=args.score, count=args.count)
-        output_name = '{0}.{2}{1}'.format(*os.path.splitext(run.name), suffix)
+        filtered = filter_with_score(run, scores_dict, args.score, args.count)
 
-        with open(output_name, 'w') as f:
-            f.writelines(filtered)
-        eprint('Saved at {}'.format(output_name))
+        # A friendly reminder
+        if not filtered:
+            eprint('Nothing left after filtering {}'.format(run))
+
+        output_name.parent.mkdir(exist_ok=True)
+        output_name.write_text('\n'.join(filtered))
+        print(output_name)
 
     eprint('Cleaning up memory.')
 
