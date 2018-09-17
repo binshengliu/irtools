@@ -8,6 +8,25 @@ def eprint(*args, **kwargs):
     print(*args, **kwargs, file=sys.stderr, flush=True)
 
 
+def gdeval_version():
+    gdeval = str(Path(__file__).resolve().with_name('gdeval.pl'))
+    args = [gdeval, '-version']
+    proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    eprint(proc.stdout.decode('utf-8').strip())
+
+
+def trec_eval_version():
+    trec_eval = str(Path(__file__).resolve().with_name('trec_eval'))
+    args = [trec_eval, '--version']
+    proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    eprint(proc.stderr.decode('utf-8').strip())
+
+
+def eval_run_version():
+    trec_eval_version()
+    gdeval_version()
+
+
 def gdeval(k, qrel_path, run_path):
     gdeval = str(Path(__file__).resolve().with_name('gdeval.pl'))
     args = [gdeval, '-k', str(k), qrel_path, run_path]
@@ -67,12 +86,13 @@ def trec_eval(measure, qrel_path, run_path):
 
 
 def normalize_name(n, measure):
-    new_name = n.replace('_', '@') if n.startswith('P_') else n
-    new_name = n.replace('_cut_', '@') if n.startswith('ndcg_cut_') else n
-    new_name = 'GDEVAL-' + n if measure.startswith('gdeval') else n
-    new_name = 'TREC-' + n if measure.startswith('ndcg') else n
-    new_name = new_name.upper()
-    return new_name
+    n = n.replace('_', '@') if n.startswith('P_') else n
+    n = n.replace('_cut_', '@') if n.startswith('ndcg_cut_') else n
+
+    n = 'GDEVAL-' + n if measure.startswith('gdeval') else n
+    n = 'TREC-' + n if measure.startswith('ndcg') else n
+    n = n.upper()
+    return n
 
 
 def eval_run(measure, qrel_path, run_path):
@@ -88,13 +108,13 @@ def eval_run(measure, qrel_path, run_path):
     else:
         aggregated, qno_results = trec_eval(measure, qrel_path, run_path)
 
-    updated_name = {}
     for m in list(aggregated.keys()):
         new_name = normalize_name(m, measure)
         aggregated[new_name] = aggregated.pop(m)
 
     for q in list(qno_results.keys()):
-        for m in qno_results[q].keys():
+        for m in list(qno_results[q].keys()):
             new_name = normalize_name(m, measure)
             qno_results[q][new_name] = qno_results[q].pop(m)
-    return updated_name, qno_results
+
+    return aggregated, qno_results
