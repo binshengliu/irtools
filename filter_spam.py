@@ -30,9 +30,9 @@ def parse_args():
         '--output',
         '-o',
         metavar='DIRECTORY',
-        default=Path('.' + os.sep),
         type=Path,
-        help='Directory to save filtered run files.')
+        help='Directory to save filtered run files. '
+        'Default to the same directory as each input run.')
 
     parser.add_argument(
         '--force',
@@ -82,6 +82,14 @@ def eprint(*args, **kwargs):
     print(*args, **kwargs, file=sys.stderr, flush=True)
 
 
+def output_path(directory, orig):
+    if directory:
+        return directory.joinpath(
+            orig.with_suffix('.filtered' + orig.suffix).name)
+    else:
+        return orig.with_suffix('.filtered' + orig.suffix)
+
+
 def filtered_path(directory, orig):
     return directory.joinpath(orig.with_suffix('.filtered' + orig.suffix).name)
 
@@ -90,9 +98,8 @@ def main():
     args = parse_args()
 
     if not args.force:
-        if all([filtered_path(args.output, run).exists() for run in args.run]):
-            eprint('All the files have been filtered before. '
-                   'Check \"{}{}\" directory.'.format(args.output, os.sep))
+        if all([output_path(args.output, run).exists() for run in args.run]):
+            eprint('All the files have been filtered before. Do nothing.')
             return
 
     eprint('Reading {}'.format(args.score_file))
@@ -102,8 +109,7 @@ def main():
         scores_dict[docno] = int(score)
 
     for run in args.run:
-        output_name = args.output.joinpath(
-            run.with_suffix('.filtered' + run.suffix).name)
+        output_name = output_path(args.output, run)
         if not args.force and output_name.exists():
             eprint('{} already exists.'.format(output_name))
             continue
