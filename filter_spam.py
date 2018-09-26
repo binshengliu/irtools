@@ -3,6 +3,8 @@ import sys
 import argparse
 import os
 from pathlib import Path
+from multiprocessing import Pool, Manager, current_process
+from operator import itemgetter
 
 
 def parse_args():
@@ -94,6 +96,108 @@ def filtered_path(directory, orig):
     return directory.joinpath(orig.with_suffix('.filtered' + orig.suffix).name)
 
 
+def prev_boundary(filename, pos):
+    if pos == 0:
+        return 0
+
+    with open(filename, 'r') as f:
+        while pos > 0:
+            pos -= 1
+            f.seek(pos)
+            if f.read(1) == os.linesep:
+                return f.tell()
+
+    return 0
+
+
+def next_boundary(filename, pos):
+    with open(filename, 'r') as f:
+        while True:
+            f.seek(pos)
+            c = f.read(1)
+            if not c or c == os.linesep:
+                return f.tell()
+            pos += 1
+
+    return 0
+
+
+def read_at_pos(filename, start, length, queue, docnos):
+    filesize = os.stat(filename).st_size
+    last = False
+    if start + length >= filesize:
+        last = True
+
+    start = prev_boundary(filename, start)
+    length = prev_boundary(filename,
+                           start + length) - start if not last else None
+    pname = current_process().name
+
+    with open(filename, 'r') as f:
+        f.seek(start)
+        if length:
+            content = f.read(length)
+        else:
+            content = f.read()
+
+    scores_dict = {}
+    for line in content.splitlines():
+        try:
+            score, docno = line.split()
+        except Exception:
+            eprint(line)
+            raise
+        if docno in docnos:
+            scores_dict[docno] = int(score)
+
+    queue.put((pname, start, scores_dict))
+    return
+
+
+def get_docnos(runlist):
+    s = set()
+    for run in runlist:
+        with open(run, 'r') as f:
+            for line in f:
+                s.add(line.split()[2])
+    return s
+
+
+def read_file_mp(filename, runlist):
+    size = os.stat(filename).st_size
+    processes = int(len(os.sched_getaffinity(0)) * 9 / 10)
+    chunk_size, residual = divmod(size, processes)
+    if residual:
+        chunk_size += 1
+    start = 0
+    param = []
+    docnos = get_docnos(runlist)
+    manager = Manager()
+    queue = manager.Queue()
+    while start < size:
+        if start + chunk_size <= size:
+            param.append((filename, start, chunk_size, queue, docnos))
+            start += chunk_size
+        else:
+            param.append((filename, start, size - start, queue, docnos))
+            start = size
+
+    scores_dict = {}
+    eprint('Read {}'.format(filename), end='\r')
+    with Pool(processes=processes) as pool:
+        ret = pool.starmap_async(read_at_pos, param)
+        for i, _ in enumerate(range(len(param))):
+            _, _, d = queue.get()
+            scores_dict.update(d)
+            eprint(
+                'Read {} {}/{} chunks'.format(filename, i + 1, len(param)),
+                end='\r')
+        ret.wait()
+        eprint()
+
+    return scores_dict
+
+
 def main():
     args = parse_args()
 
@@ -102,12 +206,9 @@ def main():
             eprint('All the files have been filtered before. Do nothing.')
             return
 
-    eprint('Reading {}'.format(args.score_file))
-    scores_dict = {}
-    for line in args.score_file.read_text().splitlines():
-        score, docno = line.split()
-        scores_dict[docno] = int(score)
+    scores_dict = read_file_mp(args.score_file, args.run)
 
+    eprint('Filtering')
     for run in args.run:
         output_name = output_path(args.output, run)
         if not args.force and output_name.exists():
