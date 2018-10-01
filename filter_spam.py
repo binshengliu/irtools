@@ -1,4 +1,4 @@
-#!/home/sl8/S3676608/.anaconda3/bin/python3
+#!/usr/bin/env python3
 import sys
 import argparse
 import os
