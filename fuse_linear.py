@@ -36,16 +36,18 @@ def parse_args():
         metavar='RUN',
     )
 
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
         '--weight',
         '-w',
         type=float_comma_list,
-        required=True,
         metavar='WEIGHT',
     )
 
+    group.add_argument('--sweep', '-s', action='store_true')
+
     args = parser.parse_args()
-    if len(args.weight) != len(args.run):
+    if args.weight is not None and len(args.weight) != len(args.run):
         parser.error('Please specify the same number of weights as runs')
 
     return args
@@ -76,10 +78,29 @@ def fuse(run_weight_list, output_fd):
     output_fd.writelines(lines)
 
 
+def sum_to_number(candidates, n, target):
+    if n == 1:
+        return [[target]] if target in candidates else []
+
+    ans = []
+    for current in candidates:
+        sub_ans = sum_to_number(candidates, n - 1, target - current)
+        ans.extend([[current] + a for a in sub_ans])
+    return ans
+
+
 def main():
     args = parse_args()
 
-    fuse(zip(args.run, args.weight), sys.stdout)
+    if args.sweep:
+        for wts in sum_to_number(range(0, 11), len(args.run), 10):
+            wts = [float(w) / 10.0 for w in wts]
+            output = '_'.join(str(w) for w in wts) + '.run'
+            with open(output, 'w') as f:
+                fuse(zip(args.run, wts), f)
+            eprint(output)
+    else:
+        fuse(zip(args.run, args.weight), sys.stdout)
 
 
 if __name__ == '__main__':
