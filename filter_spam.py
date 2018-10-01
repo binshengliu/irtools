@@ -4,7 +4,6 @@ import argparse
 import os
 from pathlib import Path
 from multiprocessing import Pool, Manager, current_process
-from operator import itemgetter
 
 
 def parse_args():
