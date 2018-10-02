@@ -122,8 +122,10 @@ def main():
 
     check_thread_param(args.param)
 
-    cluster_args = [((str(args.indri), str(param)),
-                     str(param.with_suffix('.run'))) for param in args.param]
+    params = args.param
+    runs = [p.with_suffix('.run') for p in params]
+    cluster_args = [((str(args.indri), str(p)), str(r))
+                    for p, r in zip(params, runs) if not r.exists()]
     run_indri_cluster(args.scheduler, cluster_args)
 
 
