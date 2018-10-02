@@ -49,18 +49,15 @@ def run_indri(args, output):
     return get_worker().address
 
 
-def empty_worker(dask_scheduler=None):
-    workers = dask_scheduler.workers
-    return next(w for w, ws in workers.items() if not ws.processing)
+# Idle workers are the ones with fewer tasks than its ncores/nthreads.
+def idle_workers(dask_scheduler=None):
+    workers = dask_scheduler.idle
+    return [w.address for w in workers]
 
 
 def worker_tasks(dask_scheduler=None):
     return [(w[1].address, len(w[1].processing))
             for w in dask_scheduler.workers.items()]
-
-
-def number_of_workers(dask_scheduler=None):
-    return len(dask_scheduler.workers)
 
 
 def list_of_workers(dask_scheduler=None):
@@ -69,23 +66,27 @@ def list_of_workers(dask_scheduler=None):
 
 def run_indri_cluster(scheduler, args_output_list):
     client = Client(scheduler)
-    workers = client.run_on_scheduler(list_of_workers)
-    nworkers = len(workers)
+    available_workers = client.run_on_scheduler(list_of_workers)
+    nworkers = len(available_workers)
     ntasks = len(args_output_list)
-    eprint('{} workers: {}'.format(nworkers, ' '.join(workers)))
+    eprint('{} workers: {}'.format(nworkers, ' '.join(available_workers)))
     eprint('{} tasks'.format(ntasks))
 
     futures = []
     scheduled_count = 0
-    for args, worker in zip(args_output_list[:nworkers], workers):
+    workers = client.run_on_scheduler(idle_workers)
+    # If no empty workers, do not specify, just submit.
+    workers = [[w] for w in workers] if workers else [None]
+
+    for args, worker in zip(args_output_list, workers):
         new_future = client.submit(
-            run_indri, key=args[1], *args, workers=[worker])
+            run_indri, key=args[1], *args, workers=worker)
         futures.append(new_future)
         scheduled_count += 1
         eprint('Schedule {}/{} {} {}'.format(scheduled_count, ntasks, worker,
                                              args[1]))
+    args_output_list = args_output_list[len(workers):]
 
-    args_output_list = args_output_list[nworkers:]
     completed_count = 0
     ac = as_completed(futures)
     for completed in ac:
@@ -93,15 +94,16 @@ def run_indri_cluster(scheduler, args_output_list):
         eprint('Complete {}/{} {} {}'.format(completed_count, ntasks,
                                              completed.result(),
                                              completed.key))
-        worker = client.run_on_scheduler(empty_worker)
-        if worker and args_output_list:
-            args = args_output_list.pop()
+        workers = client.run_on_scheduler(idle_workers)
+        workers = [[w] for w in workers] if workers else [None]
+        for args, worker in zip(args_output_list, workers):
             new_future = client.submit(
-                run_indri, key=args[1], *args, workers=[worker])
+                run_indri, key=args[1], *args, workers=worker)
             ac.add(new_future)
             scheduled_count += 1
             eprint('Schedule {}/{} {} {}'.format(scheduled_count, ntasks,
                                                  worker, args[1]))
+        args_output_list = args_output_list[len(workers):]
 
     wait(futures)
     eprint('All tasks completed')
@@ -111,8 +113,8 @@ def check_thread_param(param_list):
     for param in param_list:
         if ET.parse(str(param)).getroot().find('threads') is not None:
             eprint('Warning: Found <threads> tag in {}. '
-                   'The threads specified by this program '
-                   'may not work.'.format(param))
+                   'It will be overwritten with the threads '
+                   'specified by this program'.format(param))
 
 
 def main():
