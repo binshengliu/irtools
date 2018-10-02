@@ -182,9 +182,10 @@ def read_file_mp(filename, runlist):
             start = size
 
     scores_dict = {}
+    eprint('Start {} processes.'.format(processes))
     eprint('Read {}'.format(filename), end='\r')
     with Pool(processes=processes) as pool:
-        ret = pool.starmap_async(read_at_pos, param)
+        ret = pool.starmap_async(read_at_pos, param, 1)
         for i, _ in enumerate(range(len(param))):
             _, _, d = queue.get()
             scores_dict.update(d)
