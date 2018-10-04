@@ -54,14 +54,17 @@ def run_indri(args, output, queue):
     proc = subprocess.Popen(
         args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    while proc.poll() is None:
-        if cancel.get():
-            proc.kill()
-            return
-        time.sleep(1)
+    content = []
+    for l in proc.stdout:
+        content.append(l)
+        if len(content) % 1000 == 0:
+            if cancel.get():
+                proc.kill()
+                return
 
+    proc.wait()
     with open(output, 'wb') as f:
-        f.write(proc.stdout)
+        f.writelines(content)
 
     queue.put(('completed', get_worker().address, output))
     return
@@ -114,6 +117,8 @@ def run_indri_cluster(scheduler, args_output_list):
         elif status == 'completed':
             compl += 1
             eprint('Completed {}/{} {} {}'.format(compl, ntasks, worker, msg))
+        else:
+            eprint('{} {} {}'.format(status, worker, msg))
 
     wait(futures)
     eprint('All tasks completed')
