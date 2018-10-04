@@ -3,6 +3,7 @@ import argparse
 from pathlib import Path
 import lxml.etree as ET
 import sys
+import signal
 from dask.distributed import Client, as_completed, get_worker, wait, Queue
 
 
@@ -71,12 +72,21 @@ def run_indri_cluster(scheduler, args_output_list):
     available_workers = client.run_on_scheduler(list_of_workers)
     nworkers = len(available_workers)
     ntasks = len(args_output_list)
-    eprint('{} workers: {}'.format(nworkers, ' '.join(available_workers)))
-    eprint('{} tasks'.format(ntasks))
+    eprint('{} workers:\n{}'.format(nworkers, '\n'.join(available_workers)))
+    eprint('{} tasks:\n{}'.format(ntasks,
+                                  '\n'.join(o for _, o in args_output_list)))
 
     queue = Queue()
     futures = []
     futures = client.map(run_indri, *zip(*args_output_list), [queue] * ntasks)
+
+    def signal_handler(sig, frame):
+        client.cancel(futures)
+        eprint('Futures cancelled')
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+
     sched, compl = 0, 0
     while compl < ntasks:
         status, worker, msg = queue.get()
