@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 import lxml.etree as ET
 import sys
-from dask.distributed import Client, as_completed, get_worker, wait
+from dask.distributed import Client, as_completed, get_worker, wait, Queue
 
 
 def eprint(*args, **kwargs):
@@ -37,7 +37,8 @@ def parse_args():
     return args
 
 
-def run_indri(args, output):
+def run_indri(args, output, queue):
+    queue.put(('started', get_worker().address, output))
     import subprocess
     import os
     processes = int(len(os.sched_getaffinity(0)) * 9 / 10)
@@ -46,7 +47,8 @@ def run_indri(args, output):
     with open(output, 'wb') as f:
         f.write(proc.stdout)
 
-    return get_worker().address
+    queue.put(('completed', get_worker().address, output))
+    return
 
 
 # Idle workers are the ones with fewer tasks than its ncores/nthreads.
@@ -72,38 +74,18 @@ def run_indri_cluster(scheduler, args_output_list):
     eprint('{} workers: {}'.format(nworkers, ' '.join(available_workers)))
     eprint('{} tasks'.format(ntasks))
 
+    queue = Queue()
     futures = []
-    scheduled_count = 0
-    workers = client.run_on_scheduler(idle_workers)
-    # If no empty workers, do not specify, just submit.
-    workers = [[w] for w in workers] if workers else [None]
-
-    for args, worker in zip(args_output_list, workers):
-        new_future = client.submit(
-            run_indri, key=args[1], *args, workers=worker)
-        futures.append(new_future)
-        scheduled_count += 1
-        eprint('Schedule {}/{} {} {}'.format(scheduled_count, ntasks, worker,
-                                             args[1]))
-    args_output_list = args_output_list[len(workers):]
-
-    completed_count = 0
-    ac = as_completed(futures)
-    for completed in ac:
-        completed_count += 1
-        eprint('Complete {}/{} {} {}'.format(completed_count, ntasks,
-                                             completed.result(),
-                                             completed.key))
-        workers = client.run_on_scheduler(idle_workers)
-        workers = [[w] for w in workers] if workers else [None]
-        for args, worker in zip(args_output_list, workers):
-            new_future = client.submit(
-                run_indri, key=args[1], *args, workers=worker)
-            ac.add(new_future)
-            scheduled_count += 1
-            eprint('Schedule {}/{} {} {}'.format(scheduled_count, ntasks,
-                                                 worker, args[1]))
-        args_output_list = args_output_list[len(workers):]
+    futures = client.map(run_indri, *zip(*args_output_list), [queue] * ntasks)
+    sched, compl = 0, 0
+    while compl < ntasks:
+        status, worker, msg = queue.get()
+        if status == 'started':
+            sched += 1
+            eprint('Scheduled {}/{} {} {}'.format(sched, ntasks, worker, msg))
+        elif status == 'completed':
+            compl += 1
+            eprint('Completed {}/{} {} {}'.format(compl, ntasks, worker, msg))
 
     wait(futures)
     eprint('All tasks completed')
