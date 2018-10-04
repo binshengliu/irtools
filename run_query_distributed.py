@@ -4,7 +4,8 @@ from pathlib import Path
 import lxml.etree as ET
 import sys
 import signal
-from dask.distributed import Client, as_completed, get_worker, wait, Queue
+import time
+from dask.distributed import Client, as_completed, get_worker, wait, Queue, Variable
 
 
 def eprint(*args, **kwargs):
@@ -39,12 +40,26 @@ def parse_args():
 
 
 def run_indri(args, output, queue):
+    cancel = Variable('cancel')
+    if cancel.get():
+        return
+
     queue.put(('started', get_worker().address, output))
+
     import subprocess
     import os
     processes = int(len(os.sched_getaffinity(0)) * 9 / 10)
     args = (args[0], '-threads={}'.format(processes), *args[1:])
-    proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    proc = subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    while proc.poll() is None:
+        if cancel.get():
+            proc.kill()
+            return
+        time.sleep(1)
+
     with open(output, 'wb') as f:
         f.write(proc.stdout)
 
@@ -77,12 +92,15 @@ def run_indri_cluster(scheduler, args_output_list):
                                   '\n'.join(o for _, o in args_output_list)))
 
     queue = Queue()
+    cancel = Variable('cancel')
+    cancel.set(False)
     futures = []
     futures = client.map(run_indri, *zip(*args_output_list), [queue] * ntasks)
 
     def signal_handler(sig, frame):
-        client.cancel(futures)
-        eprint('Futures cancelled')
+        cancel.set(True)
+        eprint('Killing running tasks')
+        wait(futures)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
