@@ -2,6 +2,8 @@
 import sys
 import subprocess
 from pathlib import Path
+from multiprocessing.pool import ThreadPool
+import os
 
 
 def eprint(*args, **kwargs):
@@ -57,8 +59,14 @@ def gdeval(k, qrel_path, run_path):
 def gdeval_all(qrel_path, run_path):
     aggregated = {}
     qno_results = {}
-    for k in [5, 10, 15, 20, 30, 100, 200, 500, 1000]:
-        agg, result = gdeval(k, qrel_path, run_path)
+    gd_args = [(k, qrel_path, run_path)
+               for k in [5, 10, 15, 20, 30, 100, 200, 500, 1000]]
+    processes = min(int(len(os.sched_getaffinity(0)) * 9 / 10), len(gd_args))
+    eprint('{} processes'.format(processes))
+    with ThreadPool(processes=processes) as pool:
+        gd_results = pool.starmap(gdeval, gd_args)
+
+    for agg, result in gd_results:
         aggregated.update(agg)
         for qno, measure in result.items():
             qno_results.setdefault(qno, {}).update(measure)
