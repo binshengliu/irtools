@@ -13,6 +13,8 @@ def eprint(*args, **kwargs):
 
 
 def fullpath(p):
+    if p == '-':
+        return p
     return Path(p).resolve()
 
 
@@ -134,6 +136,9 @@ def check_thread_param(param_list):
 
 def main():
     args = parse_args()
+
+    if len(args.param) == 1 and args.param[0] == '-':
+        args.param = [fullpath(f.strip('\n')) for f in sys.stdin]
 
     check_thread_param(args.param)
 
