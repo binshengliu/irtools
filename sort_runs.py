@@ -4,6 +4,8 @@ import sys
 import pandas as pd
 import itertools
 from eval_run import eval_run, eval_run_version
+from multiprocessing import Pool
+import os
 
 
 def eprint(*args, **kwargs):
@@ -43,11 +45,20 @@ def main():
     args = parse_args()
     eval_run_version()
 
-    results = {}
     measures = []
+    eval_args = []
     for filename, measure in itertools.product(args.run, args.measure):
+        eval_args.append((measure, args.qrel, filename))
+
+    processes = min(int(len(os.sched_getaffinity(0)) * 9 / 10), len(eval_args))
+    with Pool(processes=processes) as pool:
+        eval_results = pool.starmap(eval_run, eval_args)
+    eval_results = [item[0] for item in eval_results]
+
+    results = {}
+    for (filename, measure), result in zip(
+            itertools.product(args.run, args.measure), eval_results):
         results.setdefault(filename, [])
-        result, _ = eval_run(measure, args.qrel, filename)
 
         for m, value in result.items():
             if m not in measures:
