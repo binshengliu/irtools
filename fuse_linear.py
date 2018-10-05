@@ -55,20 +55,43 @@ def parse_args():
 
 def fuse(run_weight_list, output_fd):
     qno_scores = {}
+    qno_min_scores = {}
     for (run, weight) in run_weight_list:
         for line in run.read_text().splitlines():
             qno, _, docno, _, score, _ = line.split()
-            qno_scores.setdefault(qno, {}).setdefault(docno, 0)
-            qno_scores[qno][docno] += weight * float(score)
+            score = float(score)
+            qno_scores.setdefault(qno, {}).setdefault(run, {})
+            qno_scores[qno][run][docno] = score
+            qno_min_scores.setdefault(qno, {}).setdefault(run, score)
+            qno_min_scores[qno][run] = min(qno_min_scores[qno][run], score)
 
-    qno_scores = sorted(
-        [(qno, sorted(doc_scores.items(), key=itemgetter(1)))
-         for qno, doc_scores in qno_scores.items()],
+    fused_scores = {}
+    for qno, run_scores in qno_scores.items():
+        # Find all the documents for qno
+        all_docs = set()
+        for run, doc_scores in run_scores.items():
+            all_docs.update(doc_scores.keys())
+
+        fused_scores.setdefault(qno, {})
+        # Calculate a score for each doc
+        for doc in all_docs:
+            score = 0
+            for run, doc_scores in run_scores.items():
+                if doc in doc_scores:
+                    score += doc_scores[doc] * weight
+                else:
+                    score += qno_min_scores[qno][run] * weight
+
+            fused_scores[qno][doc] = score
+
+    fused_scores = sorted(
+        [(qno, sorted(doc_scores.items(), key=itemgetter(1), reverse=True))
+         for qno, doc_scores in fused_scores.items()],
         key=lambda qs: float(qs[0]))
 
     current_rank = {}
     lines = []
-    for qno, rank_list in qno_scores:
+    for qno, rank_list in fused_scores:
         for docno, score in rank_list:
             current_rank.setdefault(qno, 1)
             lines.append('{qno} Q0 {docno} {rank} {score:.5f} linear\n'.format(
