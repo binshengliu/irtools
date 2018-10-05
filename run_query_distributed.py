@@ -140,7 +140,7 @@ def main():
     if len(args.param) == 1 and args.param[0] == '-':
         args.param = [fullpath(f.strip('\n')) for f in sys.stdin]
 
-    check_thread_param(args.param)
+    # check_thread_param(args.param)
 
     params = args.param
     runs = [p.with_suffix('.run') for p in params]
