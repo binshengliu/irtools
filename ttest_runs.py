@@ -4,7 +4,7 @@ import sys
 from scipy import stats
 import pandas as pd
 from eval_run import eval_run, eval_run_version
-from multiprocessing import Pool
+from concurrent.futures import ProcessPoolExecutor
 import os
 from itertools import zip_longest
 
@@ -69,8 +69,8 @@ def main():
         eval_args.append((measure, args.qrel, args.run2))
 
     processes = min(int(len(os.sched_getaffinity(0)) * 9 / 10), len(eval_args))
-    with Pool(processes=processes) as pool:
-        eval_results = pool.starmap(eval_run, eval_args)
+    with ProcessPoolExecutor(max_workers=processes) as executor:
+        eval_results = executor.map(eval_run, *zip(*eval_args))
 
     table_lines = []
     for measure, ((aggregated1, result1), (aggregated2, result2)) in zip(
