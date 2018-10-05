@@ -4,10 +4,20 @@ import sys
 from scipy import stats
 import pandas as pd
 from eval_run import eval_run, eval_run_version
+from multiprocessing import Pool
+import os
+from itertools import zip_longest
 
 
 def eprint(*args, **kwargs):
     print(*args, **kwargs, file=sys.stderr, flush=True)
+
+
+def grouper(iterable, n, fillvalue=None):
+    "Collect data into fixed-length chunks or blocks"
+    # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
+    args = [iter(iterable)] * n
+    return zip_longest(*args, fillvalue=fillvalue)
 
 
 def parse_args():
@@ -53,11 +63,18 @@ def main():
     args = parse_args()
     eval_run_version()
 
-    table_lines = []
+    eval_args = []
     for measure in args.measure:
-        aggregated1, result1 = eval_run(measure, args.qrel, args.run1)
-        aggregated2, result2 = eval_run(measure, args.qrel, args.run2)
+        eval_args.append((measure, args.qrel, args.run1))
+        eval_args.append((measure, args.qrel, args.run2))
 
+    processes = min(int(len(os.sched_getaffinity(0)) * 9 / 10), len(eval_args))
+    with Pool(processes=processes) as pool:
+        eval_results = pool.starmap(eval_run, eval_args)
+
+    table_lines = []
+    for measure, ((aggregated1, result1), (aggregated2, result2)) in zip(
+            args.measure, grouper(eval_results, 2)):
         query_ids = list(set(result1.keys()) & set(result2.keys()))
 
         ret_measures = list(aggregated1.keys())
