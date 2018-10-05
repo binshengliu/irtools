@@ -3,6 +3,8 @@ import sys
 import argparse
 from pathlib import Path
 from operator import itemgetter
+from concurrent.futures import ProcessPoolExecutor
+import os
 
 
 def eprint(*args, **kwargs):
@@ -26,8 +28,6 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Filter spams from run files',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
-    parser.add_argument
 
     parser.add_argument(
         'run',
@@ -53,7 +53,7 @@ def parse_args():
     return args
 
 
-def fuse(run_weight_list, output_fd):
+def fuse(run_weight_list, output):
     qno_scores = {}
     qno_min_scores = {}
     for (run, weight) in run_weight_list:
@@ -98,7 +98,11 @@ def fuse(run_weight_list, output_fd):
                 qno=qno, docno=docno, rank=current_rank[qno], score=score))
             current_rank[qno] += 1
 
-    output_fd.writelines(lines)
+    if output == '-':
+        sys.stdout.writelines(lines)
+    else:
+        output.write_text(''.join(lines))
+        eprint('{}'.format(output))
 
 
 def sum_to_number(candidates, n, target):
@@ -116,14 +120,21 @@ def main():
     args = parse_args()
 
     if args.sweep:
+        fuse_args = []
+        fuse_output = []
         for wts in sum_to_number(range(0, 11), len(args.run), 10):
             wts = [float(w) / 10.0 for w in wts]
-            output = '_'.join(str(w) for w in wts) + '.run'
-            with open(output, 'w') as f:
-                fuse(zip(args.run, wts), f)
-            eprint(output)
+            fuse_args.append(list(zip(args.run, wts)))
+
+            output = Path('_'.join(str(w) for w in wts) + '.run')
+            fuse_output.append(output)
+
+        processes = min(
+            int(len(os.sched_getaffinity(0)) * 9 / 10), len(fuse_args))
+        with ProcessPoolExecutor(max_workers=processes) as executor:
+            executor.map(fuse, fuse_args, fuse_output)
     else:
-        fuse(zip(args.run, args.weight), sys.stdout)
+        fuse(zip(args.run, args.weight, '-'))
 
 
 if __name__ == '__main__':
