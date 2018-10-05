@@ -53,18 +53,22 @@ def parse_args():
     return args
 
 
-def fuse(run_weight_list, output):
+def fuse(rw_list, output):
+    rw_list = list(rw_list)
     qno_scores = {}
     qno_min_scores = {}
-    for (run, weight) in run_weight_list:
+    for run, _ in rw_list:
         for line in run.read_text().splitlines():
+            run_str = str(run)
             qno, _, docno, _, score, _ = line.split()
             score = float(score)
-            qno_scores.setdefault(qno, {}).setdefault(run, {})
-            qno_scores[qno][run][docno] = score
-            qno_min_scores.setdefault(qno, {}).setdefault(run, score)
-            qno_min_scores[qno][run] = min(qno_min_scores[qno][run], score)
+            qno_scores.setdefault(qno, {}).setdefault(run_str, {})
+            qno_scores[qno][run_str][docno] = score
+            qno_min_scores.setdefault(qno, {}).setdefault(run_str, score)
+            qno_min_scores[qno][run_str] = min(qno_min_scores[qno][run_str],
+                                               score)
 
+    weight = dict([(str(r), w) for r, w in rw_list])
     fused_scores = {}
     for qno, run_scores in qno_scores.items():
         # Find all the documents for qno
@@ -78,9 +82,9 @@ def fuse(run_weight_list, output):
             score = 0
             for run, doc_scores in run_scores.items():
                 if doc in doc_scores:
-                    score += doc_scores[doc] * weight
+                    score += doc_scores[doc] * weight[run]
                 else:
-                    score += qno_min_scores[qno][run] * weight
+                    score += qno_min_scores[qno][run] * weight[run]
 
             fused_scores[qno][doc] = score
 
@@ -134,7 +138,7 @@ def main():
         with ProcessPoolExecutor(max_workers=processes) as executor:
             executor.map(fuse, fuse_args, fuse_output)
     else:
-        fuse(zip(args.run, args.weight, '-'))
+        fuse(zip(args.run, args.weight), '-')
 
 
 if __name__ == '__main__':
