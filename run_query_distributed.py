@@ -87,20 +87,19 @@ def list_of_workers(dask_scheduler=None):
     return dask_scheduler.workers.keys()
 
 
-def run_indri_cluster(scheduler, args_output_list):
+def run_indri_cluster(scheduler, indri_args, runs):
     client = Client(scheduler)
     available_workers = client.run_on_scheduler(list_of_workers)
     nworkers = len(available_workers)
-    ntasks = len(args_output_list)
+    ntasks = len(indri_args)
     eprint('{} workers:\n{}'.format(nworkers, '\n'.join(available_workers)))
-    eprint('{} tasks:\n{}'.format(ntasks,
-                                  '\n'.join(o for _, o in args_output_list)))
+    eprint('{} tasks:\n{}'.format(ntasks, '\n'.join(o for _, o in indri_args)))
 
     queue = Queue()
     cancel = Variable('cancel')
     cancel.set(False)
     futures = []
-    futures = client.map(run_indri, *zip(*args_output_list), [queue] * ntasks)
+    futures = client.map(run_indri, indri_args, runs, [queue] * ntasks)
 
     def signal_handler(sig, frame):
         cancel.set(True)
@@ -142,11 +141,10 @@ def main():
 
     # check_thread_param(args.param)
 
-    params = args.param
-    runs = [p.with_suffix('.run') for p in params]
-    cluster_args = [((str(args.indri), str(p)), str(r))
-                    for p, r in zip(params, runs) if not r.exists()]
-    run_indri_cluster(args.scheduler, cluster_args)
+    params = [p for p in args.param if not p.with_suffix('.run').exists()]
+    runs = [str(p.with_suffix('.run')) for p in params]
+    cluster_args = [(str(args.indri), str(p)) for p in params]
+    run_indri_cluster(args.scheduler, cluster_args, runs)
 
 
 if __name__ == '__main__':
