@@ -58,6 +58,18 @@ usage: filter_spam.py [-h] --score [1-100] [--count COUNT]
 filter_spam.py --count 1000 --score 50 ClueWeb09B_Spam_Fusion.txt a.run b.run
 ```
 
+## filter_oracle_run.py
+
+Filter a run file for true relevant documents.
+
+```
+filter_oracle_run.py -n 5 -r 2 cw09b.qrels a.run > a.filtered.run
+```
+
+This command filters a.run for the first 5 documents with relevance >= 2. 
+If there are not enough documents for this criteria, it will try
+relevance 1 and 0 then.
+
 ## fuse_linear.py
 
 Interpolate scores in multiple rank lists. Also exploits multiprocessing.
