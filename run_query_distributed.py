@@ -6,6 +6,7 @@ import sys
 import signal
 import time
 from dask.distributed import Client, as_completed, get_worker, wait, Queue, Variable
+import logging
 
 
 def eprint(*args, **kwargs):
@@ -28,6 +29,8 @@ def parse_args():
         default=Path('IndriRunQuery'),
         type=fullpath,
         help='Indri path')
+
+    parser.add_argument('--log', type=Path, help='Log path')
 
     parser.add_argument(
         'param',
@@ -88,10 +91,10 @@ def list_of_workers(dask_scheduler=None):
 def run_indri_cluster(scheduler, indri, params, runs):
     client = Client(scheduler)
     available_workers = client.run_on_scheduler(list_of_workers)
-    nworkers = len(available_workers)
     ntasks = len(params)
-    eprint('{} workers:\n{}'.format(nworkers, '\n'.join(available_workers)))
-    eprint('{} tasks:\n{}'.format(ntasks, '\n'.join(str(p) for p in params)))
+    logging.info('{} workers'.format(len(available_workers)))
+    for w in available_workers:
+        logging.info('{}'.format(w))
 
     queue = Queue()
     cancel = Variable('cancel')
@@ -103,9 +106,8 @@ def run_indri_cluster(scheduler, indri, params, runs):
 
     def signal_handler(sig, frame):
         cancel.set(True)
-        eprint('Killing running tasks. This may take seconds.')
-        # wait(futures)
-        # sys.exit(0)
+        logging.info(
+            'CTRL-C received. It may take seconds to kill running tasks.')
 
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -114,20 +116,40 @@ def run_indri_cluster(scheduler, indri, params, runs):
         counter += 1
         run = run_map[cf]
         status, addr, elap = cf.result()
-        eprint('{:>3}/{:<3} {:<9} {:<27} {:.1f}s {}'.format(
+        logging.info('{:>3}/{:<3} {:<9} {:<27} {:4.1f}s {}'.format(
             counter, ntasks, status, addr, elap, run))
 
 
 def check_thread_param(param_list):
     for param in param_list:
         if ET.parse(str(param)).getroot().find('threads') is not None:
-            eprint('Warning: Found <threads> tag in {}. '
-                   'It will be overwritten with the threads '
-                   'specified by this program'.format(param))
+            logging.warn('Warning: Found <threads> tag in {}. '
+                         'It will be overwritten with the threads '
+                         'specified by this program'.format(param))
+
+
+def setup_logging(log_file=None):
+    handlers = []
+    if log_file is not None:
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(logging.DEBUG)
+        handlers.append(file_handler)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    handlers.append(stream_handler)
+
+    logging.basicConfig(
+        format='%(asctime)s %(message)s',
+        handlers=handlers,
+        level=logging.DEBUG)
 
 
 def main():
     args = parse_args()
+
+    setup_logging(args.log)
 
     if len(args.param) == 1 and args.param[0] == '-':
         args.param = [fullpath(f.strip('\n')) for f in sys.stdin]
@@ -136,6 +158,10 @@ def main():
 
     params = [p for p in args.param if not p.with_suffix('.run').exists()]
     runs = [p.with_suffix('.run') for p in params]
+
+    logging.info('{} tasks'.format(len(params)))
+    for p in params:
+        logging.info('{}'.format(str(p)))
     run_indri_cluster(args.scheduler, args.indri, params, runs)
 
 
