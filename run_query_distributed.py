@@ -28,6 +28,8 @@ def parse_args():
         type=fullpath,
         help='Indri path')
 
+    parser.add_argument('--dry', action='store_true')
+
     parser.add_argument('--log', type=Path, help='Log path')
 
     parser.add_argument(
@@ -154,6 +156,10 @@ def main():
     # check_thread_param(args.param)
 
     params = [p for p in args.param if not p.with_suffix('.run').exists()]
+    if args.dry:
+        for p in params:
+            print('{}'.format(str(p)))
+        return
     runs = [p.with_suffix('.run') for p in params]
 
     logging.info('{} tasks'.format(len(params)))

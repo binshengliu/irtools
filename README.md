@@ -14,14 +14,18 @@ run_query_distributed.py --indri /path/to/IndriRunQuery --scheduler segsresap09:
 If there are too many parameter files, it's better to pass the
 parameters using stdin, otherwise the shell may not function well.
 
-For fish shell,
-```
-ls **.param | run_query_distributed.py --indri /path/to/IndriRunQuery --scheduler segsresap09:8786
-```
-
-For bash,
 ```
 find . -name "*.param" | run_query_distributed.py --indri /path/to/IndriRunQuery --scheduler segsresap09:8786
+```
+
+Dask workers may panic if there are too many tasks pending. A
+workaround is to control the task flow manually.
+
+```
+find . -name "*.param" | run_query_distributed.py --dry | split -l 24 - splited
+for f in splited*; do
+  cat $f | run_query_distributed.py --indri /path/to/IndriRunQuery --scheduler segsresap09:8786
+done
 ```
 
 ## sort_runs.py
