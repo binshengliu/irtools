@@ -14,8 +14,6 @@ def eprint(*args, **kwargs):
 
 
 def fullpath(p):
-    if p == '-':
-        return p
     return Path(p).resolve()
 
 
@@ -34,9 +32,9 @@ def parse_args():
 
     parser.add_argument(
         'param',
-        nargs='+',
+        nargs='*',
         type=Path,
-        help='param file',
+        help='Param file, none for reading from stdin',
     )
 
     args = parser.parse_args()
@@ -151,9 +149,8 @@ def main():
 
     setup_logging(args.log)
 
-    if len(args.param) == 1 and args.param[0] == '-':
-        args.param = [fullpath(f.strip('\n')) for f in sys.stdin]
-
+    if not args.param:
+        args.param = [Path(f.strip('\n')) for f in sys.stdin]
     # check_thread_param(args.param)
 
     params = [p for p in args.param if not p.with_suffix('.run').exists()]

@@ -16,12 +16,12 @@ parameters using stdin, otherwise the shell may not function well.
 
 For fish shell,
 ```
-ls **.param | run_query_distributed.py --indri /path/to/IndriRunQuery --scheduler segsresap09:8786 -
+ls **.param | run_query_distributed.py --indri /path/to/IndriRunQuery --scheduler segsresap09:8786
 ```
 
 For bash,
 ```
-find . -name "*.param" | run_query_distributed.py --indri /path/to/IndriRunQuery --scheduler segsresap09:8786 -
+find . -name "*.param" | run_query_distributed.py --indri /path/to/IndriRunQuery --scheduler segsresap09:8786
 ```
 
 ## sort_runs.py
