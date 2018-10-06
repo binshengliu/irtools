@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument(
         'param',
         nargs='+',
-        type=fullpath,
+        type=Path,
         help='param file',
     )
 
@@ -85,19 +85,20 @@ def list_of_workers(dask_scheduler=None):
     return dask_scheduler.workers.keys()
 
 
-def run_indri_cluster(scheduler, indri_args, runs):
+def run_indri_cluster(scheduler, indri, params, runs):
     client = Client(scheduler)
     available_workers = client.run_on_scheduler(list_of_workers)
     nworkers = len(available_workers)
-    ntasks = len(indri_args)
+    ntasks = len(params)
     eprint('{} workers:\n{}'.format(nworkers, '\n'.join(available_workers)))
-    eprint('{} tasks:\n{}'.format(ntasks, '\n'.join(o for _, o in indri_args)))
+    eprint('{} tasks:\n{}'.format(ntasks, '\n'.join(str(p) for p in params)))
 
     queue = Queue()
     cancel = Variable('cancel')
     cancel.set(False)
-    futures = []
-    futures = client.map(run_indri, indri_args, runs, [queue] * ntasks)
+    indri_args = [(str(indri.resolve()), str(p.resolve())) for p in params]
+    fp_runs = [str(r.resolve()) for r in runs]
+    futures = client.map(run_indri, indri_args, fp_runs, [queue] * ntasks)
     run_map = dict(zip(futures, runs))
 
     def signal_handler(sig, frame):
@@ -115,8 +116,6 @@ def run_indri_cluster(scheduler, indri_args, runs):
         status, addr, elap = cf.result()
         eprint('{:>3}/{:<3} {:<9} {:<27} {:.1f}s {}'.format(
             counter, ntasks, status, addr, elap, run))
-
-    eprint('All tasks finished')
 
 
 def check_thread_param(param_list):
@@ -136,9 +135,8 @@ def main():
     # check_thread_param(args.param)
 
     params = [p for p in args.param if not p.with_suffix('.run').exists()]
-    runs = [str(p.with_suffix('.run')) for p in params]
-    cluster_args = [(str(args.indri), str(p)) for p in params]
-    run_indri_cluster(args.scheduler, cluster_args, runs)
+    runs = [p.with_suffix('.run') for p in params]
+    run_indri_cluster(args.scheduler, args.indri, params, runs)
 
 
 if __name__ == '__main__':
