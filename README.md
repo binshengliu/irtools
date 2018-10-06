@@ -8,14 +8,20 @@ cluster.
 Specify indri path, scheduler address, and Indri parameter files.
 
 ```
-run_query_distributed.py --indri /research/remote/petabyte/users/binsheng/indri-5.12/runquery/IndriRunQuery --scheduler segsresap09:8786 \*\*.param
+run_query_distributed.py --indri /path/to/IndriRunQuery --scheduler segsresap09:8786 **.param
 ```
 
 If there are too many parameter files, it's better to pass the
 parameters using stdin, otherwise the shell may not function well.
 
+For fish shell,
 ```
-ls \*\*.param | run_query_distributed.py --indri /research/remote/petabyte/users/binsheng/indri-5.12/runquery/IndriRunQuery --scheduler segsresap09:8786 -
+ls **.param | run_query_distributed.py --indri /path/to/IndriRunQuery --scheduler segsresap09:8786 -
+```
+
+For bash,
+```
+find . -name "*.param" | run_query_distributed.py --indri /path/to/IndriRunQuery --scheduler segsresap09:8786 -
 ```
 
 ## sort_runs.py
@@ -33,7 +39,7 @@ T-test two run files for multiple measurements. It also exploits
 multiprocessing.
 
 ```
-ttest_runs.py --measure map,P,gdeval@20 ../../cw09b.qrels ../sdmf/fields.filtered.run ql.mu2500.filtered.oracle.run
+ttest_runs.py --measure map,P,gdeval@20 cw09b.qrels a.run b.run
 ```
 
 ## filter_spam.py
@@ -78,5 +84,17 @@ multiplying the scores with its query length.
 
 ```
 usage: restore_ql_score.py [-h] --param PARAM --run RUN
+```
+
+## each_server.sh
+
+```shell
+each_server.sh 'ps -ef | grep Indri | grep -v grep'
+```
+
+## set_dask_worker_nofile.sh
+
+```shell
+set_dask_worker_nofile.sh
 ```
 
