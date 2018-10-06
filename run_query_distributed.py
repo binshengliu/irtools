@@ -44,10 +44,9 @@ def parse_args():
 def run_indri(args, output, queue):
     cancel = Variable('cancel')
     if cancel.get():
-        return
+        return ('canceled', get_worker().address, 0)
 
-    queue.put(('started', get_worker().address, output))
-
+    start = time.time()
     import subprocess
     import os
     processes = int(len(os.sched_getaffinity(0)) * 9 / 10)
@@ -62,14 +61,13 @@ def run_indri(args, output, queue):
         if len(content) % 1000 == 0:
             if cancel.get():
                 proc.kill()
-                return
+                return ('killed', get_worker().address, time.time() - start)
 
     proc.wait()
     with open(output, 'wb') as f:
         f.writelines(content)
 
-    queue.put(('completed', get_worker().address, output))
-    return
+    return ('completed', get_worker().address, time.time() - start)
 
 
 # Idle workers are the ones with fewer tasks than its ncores/nthreads.
@@ -100,29 +98,25 @@ def run_indri_cluster(scheduler, indri_args, runs):
     cancel.set(False)
     futures = []
     futures = client.map(run_indri, indri_args, runs, [queue] * ntasks)
+    run_map = dict(zip(futures, runs))
 
     def signal_handler(sig, frame):
         cancel.set(True)
-        eprint('Killing running tasks')
-        wait(futures)
-        sys.exit(0)
+        eprint('Killing running tasks. This may take seconds.')
+        # wait(futures)
+        # sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    sched, compl = 0, 0
-    while compl < ntasks:
-        status, worker, msg = queue.get()
-        if status == 'started':
-            sched += 1
-            eprint('Scheduled {}/{} {} {}'.format(sched, ntasks, worker, msg))
-        elif status == 'completed':
-            compl += 1
-            eprint('Completed {}/{} {} {}'.format(compl, ntasks, worker, msg))
-        else:
-            eprint('{} {} {}'.format(status, worker, msg))
+    counter = 0
+    for cf in as_completed(futures):
+        counter += 1
+        run = run_map[cf]
+        status, addr, elap = cf.result()
+        eprint('{:>3}/{:<3} {:<9} {:<27} {:.1f}s {}'.format(
+            counter, ntasks, status, addr, elap, run))
 
-    wait(futures)
-    eprint('All tasks completed')
+    eprint('All tasks finished')
 
 
 def check_thread_param(param_list):
