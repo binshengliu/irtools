@@ -61,7 +61,7 @@ def gdeval_all(qrel_path, run_path):
     qno_results = {}
     gd_args = [(k, qrel_path, run_path)
                for k in [5, 10, 15, 20, 30, 100, 200, 500, 1000]]
-    processes = min(int(len(os.sched_getaffinity(0)) * 9 / 10), len(gd_args))
+    processes = min(len(os.sched_getaffinity(0)) - 1, len(gd_args))
     eprint('{} processes'.format(processes))
     with ProcessPoolExecutor(max_workers=processes) as executor:
         gd_results = executor.map(gdeval, *zip(*gd_args))

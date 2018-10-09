@@ -52,7 +52,7 @@ def run_indri(args, output, queue):
     start = time.time()
     from subprocess import Popen, PIPE
     import os
-    processes = int(len(os.sched_getaffinity(0)) * 9 / 10)
+    processes = len(os.sched_getaffinity(0)) - 1
     args = (args[0], '-threads={}'.format(processes), *args[1:])
 
     with Popen(args, stdout=PIPE, stderr=PIPE) as proc:

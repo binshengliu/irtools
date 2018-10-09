@@ -164,7 +164,7 @@ def get_docnos(runlist):
 
 def read_file_mp(filename, runlist):
     size = os.stat(filename).st_size
-    processes = int(len(os.sched_getaffinity(0)) * 9 / 10)
+    processes = len(os.sched_getaffinity(0)) - 1
     chunk_size, residual = divmod(size, processes)
     if residual:
         chunk_size += 1

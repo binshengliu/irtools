@@ -133,8 +133,7 @@ def main():
             output = Path('_'.join(str(w) for w in wts) + '.run')
             fuse_output.append(output)
 
-        processes = min(
-            int(len(os.sched_getaffinity(0)) * 9 / 10), len(fuse_args))
+        processes = min(len(os.sched_getaffinity(0)) - 1, len(fuse_args))
         with ProcessPoolExecutor(max_workers=processes) as executor:
             executor.map(fuse, fuse_args, fuse_output)
     else:

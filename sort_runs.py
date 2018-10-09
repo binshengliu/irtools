@@ -53,7 +53,7 @@ def main():
     for filename, measure in itertools.product(args.run, args.measure):
         eval_args.append((measure, args.qrel, filename))
 
-    processes = min(int(len(os.sched_getaffinity(0)) * 9 / 10), len(eval_args))
+    processes = min(len(os.sched_getaffinity(0)) - 1, len(eval_args))
     with ProcessPoolExecutor(max_workers=processes) as executor:
         eval_results = executor.map(eval_run, *zip(*eval_args))
     eval_results = [item[0] for item in eval_results]
