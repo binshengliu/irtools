@@ -90,9 +90,10 @@ def run_indri_cluster(scheduler, indri, params, runs):
     client = Client(scheduler)
     available_workers = client.run_on_scheduler(list_of_workers)
     ntasks = len(params)
-    logging.info('{} workers'.format(len(available_workers)))
     for w in available_workers:
         logging.info('{}'.format(w))
+    logging.info('{} tasks'.format(len(params)))
+    logging.info('{} workers'.format(len(available_workers)))
 
     queue = Queue()
     cancel = Variable('cancel')
@@ -161,7 +162,6 @@ def main():
         return
     runs = [p.with_suffix('.run') for p in params]
 
-    logging.info('{} tasks'.format(len(params)))
     for p in params:
         logging.info('{}'.format(str(p)))
     run_indri_cluster(args.scheduler, args.indri, params, runs)
