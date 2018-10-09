@@ -50,23 +50,21 @@ def run_indri(args, output, queue):
         return ('canceled', get_worker().address, 0)
 
     start = time.time()
-    import subprocess
+    from subprocess import Popen, PIPE
     import os
     processes = int(len(os.sched_getaffinity(0)) * 9 / 10)
     args = (args[0], '-threads={}'.format(processes), *args[1:])
 
-    proc = subprocess.Popen(
-        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    content = []
-    for l in proc.stdout:
-        content.append(l)
-        if len(content) % 1000 == 0:
+    with Popen(args, stdout=PIPE, stderr=PIPE) as proc:
+        content = []
+        for l in proc.stdout:
+            content.append(l)
+            if len(content) % 1000 != 0:
+                continue
             if cancel.get():
                 proc.kill()
                 return ('killed', get_worker().address, time.time() - start)
 
-    proc.wait()
     with open(output, 'wb') as f:
         f.writelines(content)
 
