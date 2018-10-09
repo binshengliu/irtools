@@ -34,7 +34,7 @@ def parse_args():
 
     parser.add_argument('qrel', metavar='QREL', help='qrel')
 
-    parser.add_argument('run', nargs='+', metavar='RUN', help='run files')
+    parser.add_argument('run', nargs='*', metavar='RUN', help='run files')
 
     args = parser.parse_args()
 
@@ -43,6 +43,9 @@ def parse_args():
 
 def main():
     args = parse_args()
+    if not args.run:
+        args.run = [f.strip('\n') for f in sys.stdin]
+
     eval_run_version()
 
     measures = []
