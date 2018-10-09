@@ -99,7 +99,8 @@ def run_indri_cluster(scheduler, indri, params, runs):
     cancel.set(False)
     indri_args = [(str(indri.resolve()), str(p.resolve())) for p in params]
     fp_runs = [str(r.resolve()) for r in runs]
-    futures = client.map(run_indri, indri_args, fp_runs, [queue] * ntasks)
+    futures = client.map(
+        run_indri, indri_args, fp_runs, [queue] * ntasks, key=fp_runs)
     run_map = dict(zip(futures, runs))
 
     def signal_handler(sig, frame):
