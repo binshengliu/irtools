@@ -62,7 +62,6 @@ def gdeval_all(qrel_path, run_path):
     gd_args = [(k, qrel_path, run_path)
                for k in [5, 10, 15, 20, 30, 100, 200, 500, 1000]]
     processes = min(len(os.sched_getaffinity(0)) - 1, len(gd_args))
-    eprint('{} processes'.format(processes))
     with ProcessPoolExecutor(max_workers=processes) as executor:
         gd_results = executor.map(gdeval, *zip(*gd_args))
 
@@ -93,36 +92,196 @@ def trec_eval(measure, qrel_path, run_path):
     return aggregated, qno_results
 
 
-def normalize_name(n, measure):
-    n = n.replace('_', '@') if n.startswith('P_') else n
-    n = n.replace('_cut_', '@') if n.startswith('ndcg_cut_') else n
+def match_prefix(s, prefix):
+    return s.startswith(prefix)
 
-    n = 'GDEVAL-' + n if measure.startswith('gdeval') else n
-    n = 'TREC-' + n if measure.startswith('ndcg') else n
-    n = n.upper()
-    return n
+
+def match_exact(s, prefix):
+    return s == prefix
+
+
+def match_true(s, prefix):
+    return True
+
+
+def eval_gdeval_k(measure, qrel_path, run_path):
+    if measure.startswith('gdeval_ndcg@'):
+        kind = 'ndcg'
+    elif measure.startswith('gdeval_err@'):
+        kind = 'err'
+    else:
+        raise ValueError
+
+    k = int(measure.split('@')[1])
+    gdeval_name = '{}@{}'.format(kind, k)
+    norm_name = 'gdeval_{}@{}'.format(kind, k)
+    aggregated, qno_results = gdeval(str(k), qrel_path, run_path)
+    aggregated = {norm_name: aggregated[gdeval_name]}
+    qno_results = {
+        qno: {
+            norm_name: ms[gdeval_name]
+        }
+        for qno, ms in qno_results.items()
+    }
+
+    return aggregated, qno_results
+
+
+def eval_gdeval_cut(measure, qrel_path, run_path):
+    if measure == 'gdeval_ndcg_cut':
+        kind = 'ndcg'
+    elif measure == 'gdeval_err_cut':
+        kind = 'err'
+    else:
+        raise ValueError
+
+    def transform(name):
+        return 'gdeval_{}@{}'.format(kind, name.split('@')[1])
+
+    aggregated, qno_results = gdeval_all(qrel_path, run_path)
+    aggregated = {
+        transform(m): v
+        for m, v in aggregated.items() if m.startswith(kind)
+    }
+    qno_results = {
+        qno: {transform(m): v
+              for m, v in ms.items() if m.startswith(kind)}
+        for qno, ms in qno_results.items()
+    }
+
+    return aggregated, qno_results
+
+
+def eval_trec_ndcg_k(measure, qrel_path, run_path):
+    k = int(measure.split('@')[1])
+
+    trec_input = 'ndcg_cut.{}'.format(k)
+    trec_output = 'ndcg_cut_{}'.format(k)
+    aggregated, qno_results = trec_eval(trec_input, qrel_path, run_path)
+    aggregated = {measure: aggregated[trec_output]}
+    qno_results = {
+        qno: {
+            measure: ms[trec_output]
+        }
+        for qno, ms in qno_results.items()
+    }
+
+    return aggregated, qno_results
+
+
+def eval_trec_ndcg_cut(measure, qrel_path, run_path):
+    def transform(m):
+        return 'trec_' + m.replace('_cut_', '@')
+
+    aggregated, qno_results = trec_eval('ndcg_cut', qrel_path, run_path)
+    aggregated = {transform(m): v for m, v in aggregated.items()}
+    qno_results = {
+        qno: {transform(m): v
+              for m, v in ms.items()}
+        for qno, ms in qno_results.items()
+    }
+
+    return aggregated, qno_results
+
+
+def eval_trec_map_k(measure, qrel_path, run_path):
+    k = int(measure.split('@')[1])
+    trec_input = 'map_cut.{}'.format(k)
+    trec_output = 'map_cut_{}'.format(k)
+    aggregated, qno_results = trec_eval(trec_input, qrel_path, run_path)
+    aggregated = {measure: aggregated[trec_output]}
+    qno_results = {
+        qno: {
+            measure: ms[trec_output]
+        }
+        for qno, ms in qno_results.items()
+    }
+
+    return aggregated, qno_results
+
+
+def eval_trec_map_cut(measure, qrel_path, run_path):
+    def transform(m):
+        return m.replace('_cut_', '@')
+
+    aggregated, qno_results = trec_eval('map_cut', qrel_path, run_path)
+    aggregated = {transform(m): v for m, v in aggregated.items()}
+    qno_results = {
+        qno: {transform(m): v
+              for m, v in ms.items()}
+        for qno, ms in qno_results.items()
+    }
+
+    return aggregated, qno_results
+
+
+def eval_trec_default(measure, qrel_path, run_path):
+    aggregated, qno_results = trec_eval(measure, qrel_path, run_path)
+    return aggregated, qno_results
+
+
+def eval_trec_general_k(measure, qrel_path, run_path):
+    trec_input = measure.replace('@', '.')
+    trec_output = measure.replace('@', '_')
+    aggregated, qno_results = trec_eval(trec_input, qrel_path, run_path)
+    aggregated = {measure: aggregated[trec_output]}
+    qno_results = {
+        qno: {
+            measure: ms[trec_output]
+        }
+        for qno, ms in qno_results.items()
+    }
+
+    return aggregated, qno_results
+
+
+def eval_trec_general_cut(measure, qrel_path, run_path):
+    def transform(m):
+        return m.replace('_', '@')
+
+    trec_input = measure.rstrip('_cut')
+    aggregated, qno_results = trec_eval(trec_input, qrel_path, run_path)
+    aggregated = {transform(m): v for m, v in aggregated.items()}
+    qno_results = {
+        qno: {transform(m): v
+              for m, v in ms.items()}
+        for qno, ms in qno_results.items()
+    }
+
+    return aggregated, qno_results
+
+
+class EvalEntry(object):
+    def __init__(self, match_str, match_function, eval_func):
+        self.match_str = match_str
+        self.match_function = match_function
+        self.eval_func = eval_func
+
+
+functions = [
+    EvalEntry('gdeval_ndcg@', match_prefix, eval_gdeval_k),
+    EvalEntry('gdeval_ndcg_cut', match_exact, eval_gdeval_cut),
+    EvalEntry('gdeval_err@', match_prefix, eval_gdeval_k),
+    EvalEntry('gdeval_err_cut', match_exact, eval_gdeval_cut),
+    EvalEntry('trec_ndcg@', match_prefix, eval_trec_ndcg_k),
+    EvalEntry('trec_ndcg_cut', match_prefix, eval_trec_ndcg_cut),
+    EvalEntry('map@', match_prefix, eval_trec_map_k),
+    EvalEntry('map_cut', match_exact, eval_trec_map_cut),
+    EvalEntry('map', match_exact, eval_trec_default),
+    EvalEntry('P@', match_prefix, eval_trec_general_k),
+    EvalEntry('P_cut', match_exact, eval_trec_general_cut),
+    EvalEntry('', match_true, eval_trec_default),
+]
 
 
 def eval_run(measure, qrel_path, run_path):
     """Supported measure: All names supported by trec_eval. \"gdeval\" and
     \"gdeval@k\" are also supported but are not official names.
     """
-    if measure.startswith('gdeval'):
-        if '@' in measure:
-            k = measure.split('@')[1]
-            aggregated, qno_results = gdeval(k, qrel_path, run_path)
-        else:
-            aggregated, qno_results = gdeval_all(qrel_path, run_path)
-    else:
-        aggregated, qno_results = trec_eval(measure, qrel_path, run_path)
+    for entry in functions:
+        if entry.match_function(measure, entry.match_str):
+            aggregated, qno_results = entry.eval_func(measure, qrel_path,
+                                                      run_path)
+            return aggregated, qno_results
 
-    for m in list(aggregated.keys()):
-        new_name = normalize_name(m, measure)
-        aggregated[new_name] = aggregated.pop(m)
-
-    for q in list(qno_results.keys()):
-        for m in list(qno_results[q].keys()):
-            new_name = normalize_name(m, measure)
-            qno_results[q][new_name] = qno_results[q].pop(m)
-
-    return aggregated, qno_results
+    raise ValueError('Unrecognizable measure {}'.format(measure))
