@@ -6,7 +6,7 @@ from eval_run import eval_run
 import sys
 import argparse
 from matplotlib import pyplot as plt
-plt.switch_backend('agg')
+# plt.switch_backend('agg')
 
 qrels = Path(
     '/research/remote/petabyte/users/binsheng/clueweb09b-rm/cw09b.qrels')
@@ -68,20 +68,28 @@ def point_vs_point(title, point1data, names, markers, filename):
     order = dfs[0].sort_values(by='Measure', ascending=False)['Query']
     df = pd.concat(
         dfs, keys=names, names=['System']).reset_index(level='System')
-    g = sns.catplot(
-        kind='point',
+    g = sns.relplot(
+        kind='scatter',
         data=df,
         x='Query',
         y='Measure',
         hue='System',
-        order=order,
+        style='System',
         markers=markers,
-        palette=sns.color_palette('Set1'),
-        join=False,
-        scale=0.4,
-        legend_out=False,
+        # palette='Set1',
+        # join=False,
+        # scale=0.4,
+        # legend_out=False,
+        palette=['#95a5a6', '#f39c12', '#2980b9', '#8e44ad'],
+        # alpha=0.8,
+        s=30,
+        # mew=0.5,
+        # scatter_kws={'alpha': 0.5}
     )
 
+    # for patch in g.ax.artists:
+    #     r, g, b, a = patch.get_facecolor()
+    #     patch.set_facecolor((r, g, b, .3))
     # g.set_titles(title)
     g.set_xticklabels([])
     g.set_xlabels('Query')
@@ -113,17 +121,68 @@ def parse_args():
 
 
 def main():
-    sns.set_style({'font.family': 'serif', 'font.serif': 'Latin Modern Roman'})
+    # sns.set_style({'font.family': 'serif', 'font.serif': 'Latin Modern Roman'})
+    plt.rcParams.update({
+        "backend": "cairo",
+        # "text.usetex": True,
+        "ps.fonttype": 42,
+        "pdf.fonttype": 42,
+        "lines.linewidth": 2.0,
+        "patch.linewidth": 0.5,
+        "axes.facecolor": "#ffffff",
+        "axes.labelsize": "large",
+        "axes.axisbelow": True,
+        "axes.grid": True,
+        "patch.edgecolor": "#f0f0f0",
+        "axes.titlesize": "x-large",
+        "examples.directory": "",
+        "figure.facecolor": "#f0f0f0",
+        "grid.linestyle": "-",
+        "grid.linewidth": 0.5,
+        "grid.color": "#cbcbcb",
+        "axes.edgecolor": "#000000",
+        "xtick.major.size": 0,
+        "xtick.minor.size": 0,
+        "ytick.major.size": 0,
+        "ytick.minor.size": 0,
+        "axes.linewidth": 1.0,
+        "font.size": 18.0,
+        "font.family": "sans-serif",
+        "lines.linewidth": 2,
+        "lines.solid_capstyle": "butt",
+        "savefig.edgecolor": "#000000",
+        "savefig.facecolor": "#ffffff",
+        "legend.fancybox": False,
+        # 'legend.handlelength': 2,
+        'legend.fontsize': 'x-small',
+        'legend.borderpad': 0.1,
+        'legend.labelspacing': 0.1,
+    })
     args = parse_args()
 
     evals = []
+    base = None
     for run in args.run:
         _, result = eval_run('gdeval@20', args.qrel, run)
-        result = [(qno, m['GDEVAL-NDCG@20']) for qno, m in result.items()]
+        if base is None:
+            base = {qno: m['GDEVAL-NDCG@20'] for qno, m in result.items()}
+        result = sorted(
+            [(qno, m['GDEVAL-NDCG@20']) for qno, m in result.items()],
+            key=lambda r: base[r[0]],
+            reverse=True)
         evals.append(result)
 
     count = len(args.run)
-    markers = ['.', '1', '2', '3', '4', '+', 'x']
+    markers = [
+        'o',
+        'p',
+        'P',
+        'X',
+        'P',
+        '>',
+        '.',
+        '.',
+    ]
     point_vs_point('', evals, args.names, markers[:count], args.output)
 
 
