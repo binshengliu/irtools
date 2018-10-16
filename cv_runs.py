@@ -74,7 +74,7 @@ def trec_eval_mp_wrapper(name, measure, qrel, run_name, train_queries,
         test_measure, _ = eval_run(measure, str(qrel), test_run.name)
         logging.info('{} {:.3f} {:.3f} {}'.format(name, train_measure[measure],
                                                   test_measure[measure], comb))
-    return train_measure, test_measure, test_lines, comb
+    return train_measure[measure], test_measure[measure], test_lines, comb
 
 
 def cv_one_fold(name, train_queries, test_queries, measure, qrel, cv_params,
