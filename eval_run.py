@@ -35,7 +35,8 @@ def eval_run_version():
 def gdeval(k, qrel_path, run_path):
     gdeval = str(Path(__file__).resolve().with_name('gdeval.pl'))
     args = [gdeval, '-k', str(k), qrel_path, run_path]
-    eprint(' '.join(args))
+    if __name__ == '__main__':
+        eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     lines = proc.stdout.decode('utf-8').splitlines()
     _, topic, ndcg, err = lines[0].split(',')
@@ -78,7 +79,8 @@ def gdeval_all(qrel_path, run_path):
 def trec_eval(measure, qrel_path, run_path):
     trec_eval = str(Path(__file__).resolve().with_name('trec_eval'))
     args = [trec_eval, '-q', '-m', measure, qrel_path, run_path]
-    eprint(' '.join(args))
+    if __name__ == '__main__':
+        eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     lines = proc.stdout.decode('utf-8').splitlines()
 
