@@ -28,13 +28,13 @@ for f in splited*; do
 done
 ```
 
-## sort_runs.py
+## eval_run.py
 
 Handy for evaluating many run files for many metrics. It exploits
 multiprocessing so it's very fast.
 
 ```
-sort_runs.py --measure map,P,gdeval@20 --sort-by GDEVAL-NDCG@20 cw09b.qrels a.run b.run c.run
+eval_run.py --measure map,P@5,gdeval_ndcg@20 --sort gdeval_ndcg@20 cw09b.qrels a.run b.run c.run
 ```
 
 ## ttest_runs.py
@@ -81,17 +81,6 @@ Interpolate scores in multiple rank lists. Also exploits multiprocessing.
 ```
 usage: fuse_linear.py [-h] (--weight WEIGHT | --sweep) RUN [RUN ...]
 ```
-
-## eval_run.py
-
-One interface for both trec_eval and gdeval.pl evaluation.
-
-In addition to all the measure supported by `trec_eval`, it supports
-customized metric `gdeval@20` style metric.
-
-The output is a little bit tricky. For `trec_eval` NDCG, the output
-name is `TREC-NDCG@20`, and for `gdeval` the output is
-`GDEVAL-NDCG@20`.
 
 ## restore_ql_score.py
 
