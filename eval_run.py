@@ -348,10 +348,8 @@ def main():
 
     results = [[f] + values for f, values in results.items()]
     df = pd.DataFrame(results, columns=['FILE'] + measures)
-    if args.sort in df.columns:
+    if args.sort is not None and args.sort in df.columns:
         df = df.sort_values(by=args.sort, ascending=False)
-    else:
-        df = df.sort_values(by=df.columns[1], ascending=False)
     print(df.to_latex(index=False, float_format=lambda f: '{:.3f}'.format(f)))
 
 
