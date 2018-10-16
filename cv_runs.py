@@ -103,7 +103,7 @@ def cv_one_fold(name, train_queries, test_queries, measure, qrel, cv_params,
 def cv(queries, shuffle, fold, measure, qrel, cv_params, cv_run_template,
        testset_output):
     testset = open(testset_output, 'w')
-    kfold = KFold(n_splits=fold, shuffle=False)
+    kfold = KFold(n_splits=fold, shuffle=shuffle)
     fold_info = []
 
     fold_workers, _ = divmod(len(os.sched_getaffinity(0)), fold)
