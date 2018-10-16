@@ -334,7 +334,7 @@ def main():
     processes = min(len(os.sched_getaffinity(0)) - 1, len(eval_args))
     with ProcessPoolExecutor(max_workers=processes) as executor:
         eval_results = executor.map(eval_run, *zip(*eval_args))
-    eval_results = [item[0] for item in eval_results]
+    eval_results, _ = zip(*eval_results)
 
     results = {}
     for (filename, measure), result in zip(
