@@ -44,7 +44,7 @@ def parse_args():
     return args
 
 
-def run_indri(args, output, queue):
+def run_indri(args, output):
     cancel = Variable('cancel')
     if cancel.get():
         return ('canceled', get_worker().address, 0)
@@ -90,19 +90,15 @@ def run_indri_cluster(scheduler, indri, params, runs):
     client = Client(scheduler)
     available_workers = client.run_on_scheduler(list_of_workers)
     ntasks = len(params)
+    batchsize = len(available_workers) * 6
     for w in available_workers:
         logging.info('{}'.format(w))
-    logging.info('{} tasks'.format(len(params)))
-    logging.info('{} workers'.format(len(available_workers)))
+    logging.info('{} tasks in total'.format(len(params)))
+    logging.info('{} workers in total'.format(len(available_workers)))
+    logging.info('{} tasks per round'.format(batchsize))
 
-    queue = Queue()
     cancel = Variable('cancel')
     cancel.set(False)
-    indri_args = [(str(indri.resolve()), str(p.resolve())) for p in params]
-    fp_runs = [str(r.resolve()) for r in runs]
-    futures = client.map(
-        run_indri, indri_args, fp_runs, [queue] * ntasks, key=fp_runs)
-    run_map = dict(zip(futures, runs))
 
     def signal_handler(sig, frame):
         cancel.set(True)
@@ -111,13 +107,27 @@ def run_indri_cluster(scheduler, indri, params, runs):
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    counter = 0
-    for cf in as_completed(futures):
-        counter += 1
-        run = run_map[cf]
-        status, addr, elap = cf.result()
-        logging.info('{:>3}/{:<3} {:<9} {:<27} {:4.1f}s {}'.format(
-            counter, ntasks, status, addr, elap, run))
+    indri_args = [(str(indri.resolve()), str(p.resolve())) for p in params]
+    fp_runs = [str(r.resolve()) for r in runs]
+    submitted = 0
+    completed = 0
+    while submitted < ntasks:
+        futures = client.map(
+            run_indri,
+            indri_args[submitted:submitted + batchsize],
+            fp_runs[submitted:submitted + batchsize],
+            key=fp_runs[submitted:submitted + batchsize],
+        )
+        logging.info('Submitted {} tasks'.format(len(futures)))
+        run_map = dict(zip(futures, runs[submitted:submitted + batchsize]))
+        for cf in as_completed(futures):
+            completed += 1
+            run = run_map[cf]
+            status, addr, elap = cf.result()
+            logging.info('{:>3}/{:<3} {:<9} {:<27} {:4.1f}s {}'.format(
+                completed, ntasks, status, addr, elap, run))
+
+        submitted += batchsize
 
 
 def check_thread_param(param_list):
