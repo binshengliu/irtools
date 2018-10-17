@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import os
-import subprocess
 import logging
 import configparser
 from pathlib import Path
@@ -130,17 +129,6 @@ def cv(queries, shuffle, fold, measure, qrel, cv_params, cv_run_template,
     return fold_info
 
 
-def str_to_bool(s):
-    return s.lower() in ['true', 'yes', 't', 'y']
-
-
-def parse_cv_params(s):
-    cv_params = s.split(',')
-    cv_params = [f.split(':') for f in cv_params]
-    cv_params = [(field, values.split('|')) for field, values in cv_params]
-    return cv_params
-
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Generate Indri parameter files.', add_help=False)
@@ -169,6 +157,15 @@ def parse_args():
 
     def split_comma(s):
         return s.split(',')
+
+    def str_to_bool(s):
+        return s.lower() in ['true', 'yes', 't', 'y']
+
+    def parse_cv_params(s):
+        cv_params = s.split(',')
+        cv_params = [f.split(':') for f in cv_params]
+        cv_params = [(field, values.split('|')) for field, values in cv_params]
+        return cv_params
 
     parser.add_argument('--cv-params', type=parse_cv_params)
     parser.add_argument('--cv-run-template', type=join_dir_str)
