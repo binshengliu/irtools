@@ -45,11 +45,11 @@ def parse_args():
 def main():
     args = parse_args()
 
-    _, result1 = eval_run('gdeval@20', args.qrel, args.base)
-    result1 = {qno: m['GDEVAL-NDCG@20'] for qno, m in result1.items()}
+    _, result1 = eval_run(args.measure, args.qrel, args.base)
+    result1 = {qno: m[args.measure] for qno, m in result1.items()}
 
-    _, result2 = eval_run('gdeval@20', args.qrel, args.comparison)
-    result2 = {qno: m['GDEVAL-NDCG@20'] for qno, m in result2.items()}
+    _, result2 = eval_run(args.measure, args.qrel, args.comparison)
+    result2 = {qno: m[args.measure] for qno, m in result2.items()}
 
     sorted_by_base = sorted(result1.items(), key=itemgetter(1))
     names = ['0-100', '0-25', '25-50', '50-75', '75-100']
