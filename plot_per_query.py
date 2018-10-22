@@ -6,10 +6,8 @@ from eval_run import eval_run
 import sys
 import argparse
 from matplotlib import pyplot as plt
-# plt.switch_backend('agg')
 
-qrels = Path(
-    '/research/remote/petabyte/users/binsheng/clueweb09b-rm/cw09b.qrels')
+# plt.switch_backend('agg')
 
 
 def eprint(*args, **kwargs):
@@ -25,42 +23,6 @@ def eval_wrapper(measure, qrel, run):
         return eval_run(measure, qrel, run)
     except Exception:
         eprint('Error: {}'.format(run))
-
-
-def point_vs_box(pointdata, boxdata, name):
-    pointdf = pd.DataFrame(pointdata, columns=['Query', 'Measure'])
-    order = pointdf.sort_values(by='Measure', ascending=False)['Query']
-    print(pointdf.head())
-    g = sns.catplot(
-        kind='point',
-        data=pointdf,
-        x='Query',
-        y='Measure',
-        order=order,
-        markers='.',
-        join=False,
-        scale=0.3,
-    )
-
-    boxdf = pd.DataFrame(boxdata, columns=['Query', 'Measure'])
-    sns.boxplot(
-        x='Query',
-        y='Measure',
-        data=boxdf,
-        order=order,
-        ax=g.ax,
-        # scale=0.2,
-        # join=False,
-        linewidth=0.3,
-        fliersize=0.3,
-        color='#bdc3c7')
-
-    g = g.set_titles('Regular RM3 vs Shard RM3 Range')
-    g.set_xticklabels([])
-    g.set_xlabels('Query')
-    g.set(xticks=[])
-    g.despine()
-    g.savefig(name)
 
 
 def point_vs_point(title, point1data, names, markers, filename):
