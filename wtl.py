@@ -42,6 +42,19 @@ def parse_args():
     return args
 
 
+def wtl_seq(base, compare, threshold=0.1):
+    win, tie, loss = 0, 0, 0
+    for e1, e2 in zip(base, compare):
+        if e2 > e1 and (e2 - e1) > e1 * threshold:
+            win += 1
+        elif e1 > e2 and (e1 - e2) > e1 * threshold:
+            loss += 1
+        else:
+            tie += 1
+
+    return win, tie, loss
+
+
 def main():
     args = parse_args()
 
@@ -56,16 +69,9 @@ def main():
     r = []
     for n, g in zip(names,
                     chain([sorted_by_base], array_split(sorted_by_base, 4))):
-        win, tie, loss = 0, 0, 0
-        for qno, _ in g:
-            s1 = result1.get(qno, 0.0)
-            s2 = result2.get(qno, 0.0)
-            if s2 > s1 and (s2 - s1) > s1 * args.threshold:
-                win += 1
-            elif s2 < s1 and (s1 - s2) > s1 * args.threshold:
-                loss += 1
-            else:
-                tie += 1
+        values1 = [result1.get(qno, 0.0) for qno, _ in g]
+        values2 = [result2.get(qno, 0.0) for qno, _ in g]
+        win, tie, loss = wtl_seq(values1, values2, args.threshold)
         r.append((n, win, tie, loss))
 
     df = pd.DataFrame(r, columns=['range', 'win', 'tie', 'loss'])
