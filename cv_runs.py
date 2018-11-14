@@ -76,9 +76,9 @@ def cv(queries, shuffle, fold, all_evals):
         test_measures.update(test_measure)
         test_measure = np.mean(list(test_measure.values()))
         param_to_query.setdefault(best_param, []).extend(test_queries)
-        fold_info.append((train_measure, test_measure, best_param))
+        fold_info.append((best_train, test_measure, best_param))
         logging.info('Fold {} {} {:.3f}, {:.3f}'.format(
-            ith, best_param, train_measure, test_measure))
+            ith, best_param, best_train, test_measure))
 
     test_measure = np.mean(list(test_measures.values()))
     return test_measure, fold_info, param_to_query
