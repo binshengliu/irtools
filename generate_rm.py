@@ -90,7 +90,7 @@ def parse_args():
     return args
 
 
-def main(pool):
+def main():
     args = parse_args()
 
     with ProcessPoolExecutor() as pool, NamedTemporaryFile(mode='w') as f:
