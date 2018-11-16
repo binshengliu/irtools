@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from concurrent.futures import ThreadPoolExecutor
 import sys
 
@@ -16,7 +17,10 @@ def parse(r):
 
 def main():
     with ThreadPoolExecutor() as executor:
-        executor.map(parse, sys.argv[1:])
+        files = sys.argv[1:]
+        if not files:
+            files = [f.strip('\n') for f in sys.stdin]
+        executor.map(parse, files)
 
 
 if __name__ == '__main__':
