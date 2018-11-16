@@ -5,7 +5,7 @@ import lxml.etree as ET
 import sys
 import signal
 import time
-from dask.distributed import Client, as_completed, get_worker, Queue, Variable
+from dask.distributed import Client, as_completed, get_worker, Variable, get_client
 import logging
 
 
@@ -45,7 +45,7 @@ def parse_args():
 
 
 def run_indri(args, output):
-    cancel = Variable('cancel')
+    cancel = Variable('cancel', get_client())
     if cancel.get():
         return ('canceled', get_worker().address, 0)
 
@@ -97,7 +97,7 @@ def run_indri_cluster(scheduler, indri, params, runs):
     logging.info('{} workers in total'.format(len(available_workers)))
     logging.info('{} tasks per round'.format(batchsize))
 
-    cancel = Variable('cancel')
+    cancel = Variable('cancel', client)
     cancel.set(False)
 
     def signal_handler(sig, frame):
