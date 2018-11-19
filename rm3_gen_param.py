@@ -97,9 +97,10 @@ def generate_rmodel(runfile, field, index, docs):
     return proc.stdout
 
 
-def prepare_rerank_base_param(ql_param, rerank_run):
+def prepare_base_param(ql_param, condense_run):
     tree = ET.parse(str(ql_param), ET.XMLParser(remove_blank_text=True))
-    add_working_set(tree, rerank_run)
+    if condense_run and condense_run.is_file():
+        add_working_set(tree, condense_run)
     return tree.getroot()
 
 
@@ -133,14 +134,9 @@ def remove_all_node(root, name):
         root.remove(node)
 
 
-def sweep(ql_param, rerank_run, rm_induce_field, rm_score_field, rm_docs,
-          rm_terms, rm_orig_weights, rm_param_template, rerank_count,
-          rerank_mu, condensed, rmodels):
-    if condensed:
-        rerankroot = prepare_rerank_base_param(ql_param, rerank_run)
-    else:
-        rerankroot = ET.parse(
-            str(ql_param), ET.XMLParser(remove_blank_text=True)).getroot()
+def sweep_params(baseparam, rm_induce_field, rm_score_field, rm_docs, rm_terms,
+                 rm_orig_weights, rm_param_template, rerank_count, rerank_mu,
+                 rmodels):
 
     for (d, t, o, mu) in itertools.product(rm_docs, rm_terms, rm_orig_weights,
                                            rerank_mu):
@@ -156,7 +152,7 @@ def sweep(ql_param, rerank_run, rm_induce_field, rm_score_field, rm_docs,
             logging.info('{} exists'.format(rerank_param_name))
             continue
 
-        root = deepcopy(rerankroot)
+        root = deepcopy(baseparam)
         remove_all_node(root, 'threads')
         update_or_add_node(root, 'rule', 'method:dirichlet,mu:{}'.format(mu))
         update_or_add_node(root, 'count', str(rerank_count))
@@ -200,7 +196,6 @@ def parse_args():
     args, remaining_argv = parser.parse_known_args()
     directory = args.conf.parent
     defaults = {
-        'condensed': False,
         'rm_rerank_mu': 2500,
         'rm_rerank_count': 1000,
         'log': directory.joinpath('log',
@@ -230,7 +225,7 @@ def parse_args():
         return True if s.lower() in ['true', 'yes', 't', 'y'] else False
 
     parser.add_argument('--ql-param', type=join_dir)
-    parser.add_argument('--rerank-run', type=Path)
+    parser.add_argument('--condense-run', type=Path)
     parser.add_argument('--rm-rerank-count', type=int)
     parser.add_argument('--rm-rerank-mu', type=comma_int)
     parser.add_argument('--rm-induce-field')
@@ -239,7 +234,6 @@ def parse_args():
     parser.add_argument('--rm-terms', type=comma_int)
     parser.add_argument('--rm-orig-weights', type=comma_float)
     parser.add_argument('--rm-template', type=join_dir_str)
-    parser.add_argument('--condensed', metavar='BOOL', type=string_to_bool)
     parser.add_argument('--log', type=join_dir)
 
     args, _ = parser.parse_known_args()
@@ -283,10 +277,12 @@ def main_mp(pool):
 
     rmodels = load_rmodels_mp(pool, args.rm_docs, args.rm_induce_field,
                               args.rm_template)
-    sweep(args.ql_param, args.rerank_run, args.rm_induce_field,
-          args.rm_score_field, args.rm_docs, args.rm_terms,
-          args.rm_orig_weights, args.rm_param_template, args.rm_rerank_count,
-          args.rm_rerank_mu, args.condensed, rmodels)
+    base_param = prepare_base_param(args.ql_param, args.condense_run)
+
+    sweep_params(base_param, args.rm_induce_field, args.rm_score_field,
+                 args.rm_docs, args.rm_terms, args.rm_orig_weights,
+                 args.rm_param_template, args.rm_rerank_count,
+                 args.rm_rerank_mu, rmodels)
 
 
 if __name__ == '__main__':
