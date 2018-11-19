@@ -309,7 +309,7 @@ def eval_to_csv(measures, qrel_path, run_path):
             results[q].update(m)
 
     df = pd.DataFrame(results).T.reset_index().rename(
-        columns={'index': 'variant'})
+        columns={'index': 'number'})
     csv_path = Path(run_path).with_suffix('.csv')
     csv_path.write_text(df.to_csv(index=False))
     return time.time() - start
