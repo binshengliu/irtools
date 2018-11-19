@@ -152,6 +152,7 @@ def load_all_evals(params, eval_template, measure):
             comb = list(zip(param_names, setting))
             eval_name = Path(eval_template.format(**dict(comb)))
             if not eval_name.exists():
+                logging.warn('{} does not exist'.format(eval_name))
                 continue
             future = pool.submit(load_eval, eval_name)
             future_to_param[future] = setting

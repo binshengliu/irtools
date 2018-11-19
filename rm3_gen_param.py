@@ -134,43 +134,50 @@ def remove_all_node(root, name):
         root.remove(node)
 
 
+def generate_param(baseparam, induce_field, score_field, docs, terms, orig, mu,
+                   count, rmodels):
+    root = deepcopy(baseparam)
+    remove_all_node(root, 'threads')
+    update_or_add_node(root, 'rule', 'method:dirichlet,mu:{}'.format(mu))
+    update_or_add_node(root, 'count', str(count))
+
+    for node in root.findall('query'):
+        qno = node.find('number').text
+        expansion = get_expansion_terms(rmodels[docs][induce_field],
+                                        score_field, qno, terms)
+        if not expansion.strip():
+            continue
+        original_query = node.find('text').text
+        node.find('text').text = expand_query(original_query, score_field,
+                                              orig, expansion)
+    return root
+
+
 def sweep_params(baseparam, rm_induce_field, rm_score_field, rm_docs, rm_terms,
                  rm_orig_weights, rm_param_template, rerank_count, rerank_mu,
                  rmodels):
 
     for (d, t, o, mu) in itertools.product(rm_docs, rm_terms, rm_orig_weights,
                                            rerank_mu):
-        rerank_param_name = rm_param_template.format(
+        param_path = rm_param_template.format(
             docs=d,
             terms=t,
             orig=o,
             rm_induce_field=rm_induce_field,
             rm_score_field=rm_score_field,
             rerank_mu=mu)
-        rerank_param_name = Path(rerank_param_name)
-        if rerank_param_name.exists():
-            logging.info('{} exists'.format(rerank_param_name))
+        param_path = Path(param_path)
+        if param_path.exists():
+            logging.info('{} exists'.format(param_path))
             continue
 
-        root = deepcopy(baseparam)
-        remove_all_node(root, 'threads')
-        update_or_add_node(root, 'rule', 'method:dirichlet,mu:{}'.format(mu))
-        update_or_add_node(root, 'count', str(rerank_count))
+        newroot = generate_param(baseparam, rm_induce_field, rm_score_field, d,
+                                 t, o, mu, rerank_count, rmodels)
 
-        for node in root.findall('query'):
-            qno = node.find('number').text
-            expansion = get_expansion_terms(rmodels[d][rm_induce_field],
-                                            rm_score_field, qno, t)
-            if not expansion.strip():
-                continue
-            original_query = node.find('text').text
-            node.find('text').text = expand_query(original_query,
-                                                  rm_score_field, o, expansion)
-        rerank_param_name.parent.mkdir(parents=True, exist_ok=True)
-        rerank_param_name.write_text(
-            ET.tostring(root, pretty_print=True, encoding='unicode'))
-
-        logging.info('{}'.format(rerank_param_name))
+        param_path.parent.mkdir(parents=True, exist_ok=True)
+        param_path.write_text(
+            ET.tostring(newroot, pretty_print=True, encoding='unicode'))
+        logging.info('{}'.format(param_path))
 
 
 def setup_logging(log_file):
@@ -196,8 +203,6 @@ def parse_args():
     args, remaining_argv = parser.parse_known_args()
     directory = args.conf.parent
     defaults = {
-        'rm_rerank_mu': 2500,
-        'rm_rerank_count': 1000,
         'log': directory.joinpath('log',
                                   Path(__file__).with_suffix('.log').name)
     }
@@ -225,7 +230,7 @@ def parse_args():
         return True if s.lower() in ['true', 'yes', 't', 'y'] else False
 
     parser.add_argument('--ql-param', type=join_dir)
-    parser.add_argument('--condense-run', type=Path)
+    parser.add_argument('--rm-condense-run', type=Path)
     parser.add_argument('--rm-rerank-count', type=int)
     parser.add_argument('--rm-rerank-mu', type=comma_int)
     parser.add_argument('--rm-induce-field')
@@ -234,6 +239,7 @@ def parse_args():
     parser.add_argument('--rm-terms', type=comma_int)
     parser.add_argument('--rm-orig-weights', type=comma_float)
     parser.add_argument('--rm-template', type=join_dir_str)
+    parser.add_argument('--rm-param-template', type=join_dir_str)
     parser.add_argument('--log', type=join_dir)
 
     args, _ = parser.parse_known_args()
@@ -277,7 +283,7 @@ def main_mp(pool):
 
     rmodels = load_rmodels_mp(pool, args.rm_docs, args.rm_induce_field,
                               args.rm_template)
-    base_param = prepare_base_param(args.ql_param, args.condense_run)
+    base_param = prepare_base_param(args.ql_param, args.rm_condense_run)
 
     sweep_params(base_param, args.rm_induce_field, args.rm_score_field,
                  args.rm_docs, args.rm_terms, args.rm_orig_weights,
