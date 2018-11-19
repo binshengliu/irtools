@@ -50,9 +50,8 @@ def param_to_str(params):
 
 
 def cv(queries, shuffle, fold, all_evals):
-    fold_info = []
-    param_to_query = {}
-    test_measures = {}
+    per_fold = []
+    per_query = {}
     kfold = KFold(n_splits=fold, shuffle=shuffle)
     for ith, (train_index, test_index) in enumerate(kfold.split(queries)):
         train_queries = [queries[i] for i in train_index]
@@ -60,28 +59,31 @@ def cv(queries, shuffle, fold, all_evals):
         logging.debug('Fold {} test: {}'.format(ith, test_queries))
 
         param_result = []
-        for param_setting, per_query in all_evals.items():
+        for param_setting, query_evals in all_evals.items():
             train_measure = np.mean([
-                value for query, value in per_query.items()
+                value for query, value in query_evals.items()
                 if query in train_queries
             ])
             param_result.append((param_setting, train_measure))
 
         best_param, best_train = max(param_result, key=itemgetter(1))
-        test_measure = {
+        this_fold = {
             query: value
             for query, value in all_evals[best_param].items()
             if query in test_queries
         }
-        test_measures.update(test_measure)
-        test_measure = np.mean(list(test_measure.values()))
-        param_to_query.setdefault(best_param, []).extend(test_queries)
-        fold_info.append((best_train, test_measure, best_param))
+        per_query.update({
+            query: (value, *best_param)
+            for query, value in all_evals[best_param].items()
+            if query in test_queries
+        })
+        this_fold = np.mean(list(this_fold.values()))
+        per_fold.append((best_train, this_fold, best_param))
         logging.info('Fold {} {} {:.3f}, {:.3f}'.format(
-            ith, best_param, best_train, test_measure))
+            ith, best_param, best_train, this_fold))
 
-    test_measure = np.mean(list(test_measures.values()))
-    return test_measure, fold_info, param_to_query
+    agg = np.mean([pq[0] for pq in per_query.values()])
+    return agg, per_fold, per_query
 
 
 def parse_args():
@@ -127,6 +129,7 @@ def parse_args():
     parser.add_argument('--cv-qrel', type=join_dir)
     parser.add_argument('--cv-shuffle', type=str_to_bool)
     parser.add_argument('--cv-folds', type=int)
+    parser.add_argument('--cv-per-query', type=join_dir)
     parser.add_argument('--log', type=join_dir)
 
     args = parser.parse_args()
@@ -182,15 +185,20 @@ def main():
 
     all_evals, all_queries = load_all_evals(args.cv_params,
                                             args.cv_eval_template)
-    test_measure, fold_info, param_to_query = cv(all_queries, args.cv_shuffle,
-                                                 args.cv_folds, all_evals)
+    test_measure, per_fold, per_query = cv(all_queries, args.cv_shuffle,
+                                           args.cv_folds, all_evals)
 
     fields, _ = zip(*args.cv_params)
 
-    data = [(*params, train, test) for train, test, params in fold_info]
+    data = [(*params, train, test) for train, test, params in per_fold]
     df = pd.DataFrame(data, columns=fields + ('train', 'test'))
     logging.info('\n' + df.to_latex(float_format=lambda f: '{:.3f}'.format(f)))
-    logging.info('Measure: {:.3f}'.format(test_measure))
+    logging.info('Agg measure: {:.3f}'.format(test_measure))
+
+    df = pd.DataFrame([(k, *v) for k, v in per_query.items()],
+                      columns=('number', 'measure',
+                               *[r[0] for r in args.cv_params]))
+    args.cv_per_query.write_text(df.to_csv(index=False))
 
 
 if __name__ == '__main__':
