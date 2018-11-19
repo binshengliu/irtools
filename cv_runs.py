@@ -123,12 +123,11 @@ def parse_args():
         return cv_params
 
     parser.add_argument('--cv-params', type=parse_cv_params)
-    parser.add_argument('--cv-run-template', type=join_dir_str)
+    parser.add_argument('--cv-eval-template', type=join_dir_str)
     parser.add_argument('--cv-measure')
     parser.add_argument('--cv-qrel', type=join_dir)
     parser.add_argument('--cv-shuffle', type=str_to_bool)
     parser.add_argument('--cv-folds', type=int)
-    parser.add_argument('--cv-testset-name', type=join_dir)
     parser.add_argument('--log', type=join_dir)
 
     args = parser.parse_args()
@@ -136,7 +135,13 @@ def parse_args():
     return args
 
 
-def evaluate_all_runs(params, run_template, measure, qrel):
+def load_eval(csv):
+    df = pd.read_csv(csv, index_col=0)
+    per_query = df.T.to_dict()
+    return per_query
+
+
+def load_all_evals(params, eval_template, measure):
     workers = len(os.sched_getaffinity(0))
     param_names, param_values = zip(*params)
     result = {}
@@ -145,20 +150,20 @@ def evaluate_all_runs(params, run_template, measure, qrel):
         future_to_param = {}
         for setting in itertools.product(*param_values):
             comb = list(zip(param_names, setting))
-            run_name = run_template.format(**dict(comb))
-
-            if not os.path.isfile(run_name):
+            eval_name = Path(eval_template.format(**dict(comb)))
+            if not eval_name.exists():
                 continue
-            future = pool.submit(eval_run, measure, str(qrel), str(run_name))
+            future = pool.submit(load_eval, eval_name)
             future_to_param[future] = setting
 
         for f in as_completed(future_to_param):
             param = future_to_param[f]
-            agg, per_query = f.result()
+            per_query = f.result()
             per_query = {query: v[measure] for query, v in per_query.items()}
             all_queries.update(per_query.keys())
             result[param] = per_query
-            logging.info('{}: {:.3f}'.format(param, agg[measure]))
+            agg = np.mean(list(per_query.values()))
+            logging.info('{}: {:.3f}'.format(param, agg))
 
     try:
         all_queries = sorted(list(all_queries), key=int)
@@ -175,27 +180,12 @@ def main():
     logging.info('# Start cross validation')
     print_args(args)
 
-    Path(args.cv_testset_name).parent.mkdir(parents=True, exist_ok=True)
-    all_evals, all_queries = evaluate_all_runs(
-        args.cv_params, args.cv_run_template, args.cv_measure, args.cv_qrel)
+    all_evals, all_queries = load_all_evals(
+        args.cv_params, args.cv_eval_template, args.cv_measure)
     test_measure, fold_info, param_to_query = cv(all_queries, args.cv_shuffle,
                                                  args.cv_folds, all_evals)
 
     fields, _ = zip(*args.cv_params)
-    # Extract testset
-    lines = {}
-    for param, queries in param_to_query.items():
-        comb = list(zip(fields, param))
-        run = args.cv_run_template.format(**dict(comb))
-        with open(run, 'r') as f:
-            for line in f:
-                q = line.split(maxsplit=1)[0]
-                if q in queries:
-                    lines.setdefault(q, []).append(line)
-
-    # Preserve the order
-    lines = itertools.chain.from_iterable([lines[q] for q in all_queries])
-    Path(args.cv_testset_name).write_text(''.join(lines))
 
     data = [(*params, train, test) for train, test, params in fold_info]
     df = pd.DataFrame(data, columns=fields + ('train', 'test'))
