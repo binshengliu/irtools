@@ -124,7 +124,6 @@ def parse_args():
 
     parser.add_argument('--cv-params', type=parse_cv_params)
     parser.add_argument('--cv-eval-template', type=join_dir_str)
-    parser.add_argument('--cv-measure')
     parser.add_argument('--cv-qrel', type=join_dir)
     parser.add_argument('--cv-shuffle', type=str_to_bool)
     parser.add_argument('--cv-folds', type=int)
@@ -137,11 +136,12 @@ def parse_args():
 
 def load_eval(csv):
     df = pd.read_csv(csv, index_col=0)
-    per_query = df.T.to_dict()
+    per_query = df.to_dict()
+    per_query = next(iter(per_query.values()))
     return per_query
 
 
-def load_all_evals(params, eval_template, measure):
+def load_all_evals(params, eval_template):
     workers = len(os.sched_getaffinity(0))
     param_names, param_values = zip(*params)
     result = {}
@@ -160,7 +160,6 @@ def load_all_evals(params, eval_template, measure):
         for f in as_completed(future_to_param):
             param = future_to_param[f]
             per_query = f.result()
-            per_query = {query: v[measure] for query, v in per_query.items()}
             all_queries.update(per_query.keys())
             result[param] = per_query
             agg = np.mean(list(per_query.values()))
@@ -181,8 +180,8 @@ def main():
     logging.info('# Start cross validation')
     print_args(args)
 
-    all_evals, all_queries = load_all_evals(
-        args.cv_params, args.cv_eval_template, args.cv_measure)
+    all_evals, all_queries = load_all_evals(args.cv_params,
+                                            args.cv_eval_template)
     test_measure, fold_info, param_to_query = cv(all_queries, args.cv_shuffle,
                                                  args.cv_folds, all_evals)
 
