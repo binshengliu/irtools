@@ -2,11 +2,12 @@
 import sys
 import subprocess
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
 import argparse
 import itertools
 import pandas as pd
+import time
 
 
 def eprint(*args, **kwargs):
@@ -292,6 +293,34 @@ def eval_run(measure, qrel_path, run_path):
     raise ValueError('Unrecognizable measure {}'.format(measure))
 
 
+def eval_to_csv(measures, qrel_path, run_path):
+    results = {}
+    for measure in measures:
+        _, result = eval_run(measure, qrel_path, run_path)
+        for q, m in result.items():
+            results.setdefault(q, {})
+            results[q].update(m)
+
+    df = pd.DataFrame(results).T.reset_index().rename(
+        columns={'index': 'variant'})
+    csv_path = Path(run_path).with_suffix('.csv')
+    csv_path.write_text(df.to_csv(index=False))
+
+
+def eval_to_csv_mp(measures, qrel, runs):
+    future_to_run = {}
+    with ProcessPoolExecutor() as executor:
+        for run in runs:
+            future = executor.submit(eval_to_csv, measures, qrel, run)
+            future_to_run[future] = (run, time.time())
+
+    ntasks = len(runs)
+    for i, future in enumerate(as_completed(future_to_run)):
+        run, start = future_to_run[future]
+        elap = time.time() - start
+        eprint('{:>3}/{:<3} {:4.1f}s {}'.format(i + 1, ntasks, elap, run))
+
+
 def split_comma(s):
     return s.split(',')
 
@@ -312,6 +341,11 @@ def parse_args():
         '-s',
         help='Sort by, like gdeval_ndcg@20, otherwise the first measure')
 
+    parser.add_argument(
+        '--csv',
+        action='store_true',
+        help='Write per query evaluation into a csv file.')
+
     parser.add_argument('qrel', metavar='QREL', help='qrel')
 
     parser.add_argument('run', nargs='*', metavar='RUN', help='run files')
@@ -327,6 +361,10 @@ def main():
         args.run = [f.strip('\n') for f in sys.stdin]
 
     eval_run_version()
+
+    if args.csv:
+        eval_to_csv_mp(args.measure, args.qrel, args.run)
+        return
 
     measures = []
     eval_args = []
