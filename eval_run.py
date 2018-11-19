@@ -33,10 +33,10 @@ def eval_run_version():
     gdeval_version()
 
 
-def gdeval(k, qrel_path, run_path):
+def gdeval(k, qrel_path, run_path, show_cmd=True):
     gdeval = str(Path(__file__).resolve().with_name('gdeval.pl'))
     args = [gdeval, '-k', str(k), qrel_path, run_path]
-    if __name__ == '__main__':
+    if show_cmd:
         eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     lines = proc.stdout.decode('utf-8').splitlines()
@@ -61,10 +61,10 @@ def gdeval(k, qrel_path, run_path):
     return aggregated, qno_results
 
 
-def gdeval_all(qrel_path, run_path):
+def gdeval_all(qrel_path, run_path, show_cmd=True):
     aggregated = {}
     qno_results = {}
-    gd_args = [(k, qrel_path, run_path)
+    gd_args = [(k, qrel_path, run_path, show_cmd)
                for k in [5, 10, 15, 20, 30, 100, 200, 500, 1000]]
     processes = min(len(os.sched_getaffinity(0)) - 1, len(gd_args))
     with ProcessPoolExecutor(max_workers=processes) as executor:
@@ -77,10 +77,10 @@ def gdeval_all(qrel_path, run_path):
     return aggregated, qno_results
 
 
-def trec_eval(measure, qrel_path, run_path):
+def trec_eval(measure, qrel_path, run_path, show_cmd=True):
     trec_eval = str(Path(__file__).resolve().with_name('trec_eval'))
     args = [trec_eval, '-q', '-m', measure, qrel_path, run_path]
-    if __name__ == '__main__':
+    if show_cmd:
         eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     lines = proc.stdout.decode('utf-8').splitlines()
@@ -110,7 +110,7 @@ def match_true(s, prefix):
     return True
 
 
-def eval_gdeval_k(measure, qrel_path, run_path):
+def eval_gdeval_k(measure, qrel_path, run_path, show_cmd=True):
     if measure.startswith('gdeval_ndcg@'):
         kind = 'ndcg'
     elif measure.startswith('gdeval_err@'):
@@ -121,7 +121,7 @@ def eval_gdeval_k(measure, qrel_path, run_path):
     k = int(measure.split('@')[1])
     gdeval_name = '{}@{}'.format(kind, k)
     norm_name = 'gdeval_{}@{}'.format(kind, k)
-    aggregated, qno_results = gdeval(str(k), qrel_path, run_path)
+    aggregated, qno_results = gdeval(str(k), qrel_path, run_path, show_cmd)
     aggregated = {norm_name: aggregated[gdeval_name]}
     qno_results = {
         qno: {
@@ -133,7 +133,7 @@ def eval_gdeval_k(measure, qrel_path, run_path):
     return aggregated, qno_results
 
 
-def eval_gdeval_cut(measure, qrel_path, run_path):
+def eval_gdeval_cut(measure, qrel_path, run_path, show_cmd=True):
     if measure == 'gdeval_ndcg_cut':
         kind = 'ndcg'
     elif measure == 'gdeval_err_cut':
@@ -144,7 +144,7 @@ def eval_gdeval_cut(measure, qrel_path, run_path):
     def transform(name):
         return 'gdeval_{}@{}'.format(kind, name.split('@')[1])
 
-    aggregated, qno_results = gdeval_all(qrel_path, run_path)
+    aggregated, qno_results = gdeval_all(qrel_path, run_path, show_cmd)
     aggregated = {
         transform(m): v
         for m, v in aggregated.items() if m.startswith(kind)
@@ -158,12 +158,13 @@ def eval_gdeval_cut(measure, qrel_path, run_path):
     return aggregated, qno_results
 
 
-def eval_trec_ndcg_k(measure, qrel_path, run_path):
+def eval_trec_ndcg_k(measure, qrel_path, run_path, show_cmd=True):
     k = int(measure.split('@')[1])
 
     trec_input = 'ndcg_cut.{}'.format(k)
     trec_output = 'ndcg_cut_{}'.format(k)
-    aggregated, qno_results = trec_eval(trec_input, qrel_path, run_path)
+    aggregated, qno_results = trec_eval(
+        trec_input, qrel_path, run_path, show_cmd=True)
     aggregated = {measure: aggregated[trec_output]}
     qno_results = {
         qno: {
@@ -175,11 +176,12 @@ def eval_trec_ndcg_k(measure, qrel_path, run_path):
     return aggregated, qno_results
 
 
-def eval_trec_ndcg_cut(measure, qrel_path, run_path):
+def eval_trec_ndcg_cut(measure, qrel_path, run_path, show_cmd=True):
     def transform(m):
         return 'trec_' + m.replace('_cut_', '@')
 
-    aggregated, qno_results = trec_eval('ndcg_cut', qrel_path, run_path)
+    aggregated, qno_results = trec_eval('ndcg_cut', qrel_path, run_path,
+                                        show_cmd)
     aggregated = {transform(m): v for m, v in aggregated.items()}
     qno_results = {
         qno: {transform(m): v
@@ -190,11 +192,12 @@ def eval_trec_ndcg_cut(measure, qrel_path, run_path):
     return aggregated, qno_results
 
 
-def eval_trec_map_k(measure, qrel_path, run_path):
+def eval_trec_map_k(measure, qrel_path, run_path, show_cmd=True):
     k = int(measure.split('@')[1])
     trec_input = 'map_cut.{}'.format(k)
     trec_output = 'map_cut_{}'.format(k)
-    aggregated, qno_results = trec_eval(trec_input, qrel_path, run_path)
+    aggregated, qno_results = trec_eval(trec_input, qrel_path, run_path,
+                                        show_cmd)
     aggregated = {measure: aggregated[trec_output]}
     qno_results = {
         qno: {
@@ -206,11 +209,12 @@ def eval_trec_map_k(measure, qrel_path, run_path):
     return aggregated, qno_results
 
 
-def eval_trec_map_cut(measure, qrel_path, run_path):
+def eval_trec_map_cut(measure, qrel_path, run_path, show_cmd=True):
     def transform(m):
         return m.replace('_cut_', '@')
 
-    aggregated, qno_results = trec_eval('map_cut', qrel_path, run_path)
+    aggregated, qno_results = trec_eval('map_cut', qrel_path, run_path,
+                                        show_cmd)
     aggregated = {transform(m): v for m, v in aggregated.items()}
     qno_results = {
         qno: {transform(m): v
@@ -221,15 +225,16 @@ def eval_trec_map_cut(measure, qrel_path, run_path):
     return aggregated, qno_results
 
 
-def eval_trec_default(measure, qrel_path, run_path):
-    aggregated, qno_results = trec_eval(measure, qrel_path, run_path)
+def eval_trec_default(measure, qrel_path, run_path, show_cmd=True):
+    aggregated, qno_results = trec_eval(measure, qrel_path, run_path, show_cmd)
     return aggregated, qno_results
 
 
-def eval_trec_general_k(measure, qrel_path, run_path):
+def eval_trec_general_k(measure, qrel_path, run_path, show_cmd=True):
     trec_input = measure.replace('@', '.')
     trec_output = measure.replace('@', '_')
-    aggregated, qno_results = trec_eval(trec_input, qrel_path, run_path)
+    aggregated, qno_results = trec_eval(trec_input, qrel_path, run_path,
+                                        show_cmd)
     aggregated = {measure: aggregated[trec_output]}
     qno_results = {
         qno: {
@@ -241,12 +246,13 @@ def eval_trec_general_k(measure, qrel_path, run_path):
     return aggregated, qno_results
 
 
-def eval_trec_general_cut(measure, qrel_path, run_path):
+def eval_trec_general_cut(measure, qrel_path, run_path, show_cmd=True):
     def transform(m):
         return m.replace('_', '@')
 
     trec_input = measure.rstrip('_cut')
-    aggregated, qno_results = trec_eval(trec_input, qrel_path, run_path)
+    aggregated, qno_results = trec_eval(trec_input, qrel_path, run_path,
+                                        show_cmd)
     aggregated = {transform(m): v for m, v in aggregated.items()}
     qno_results = {
         qno: {transform(m): v
@@ -280,23 +286,24 @@ functions = [
 ]
 
 
-def eval_run(measure, qrel_path, run_path):
+def eval_run(measure, qrel_path, run_path, show_cmd=True):
     """Supported measure: All names supported by trec_eval. \"gdeval\" and
     \"gdeval@k\" are also supported but are not official names.
     """
     for entry in functions:
         if entry.match_function(measure, entry.match_str):
             aggregated, qno_results = entry.eval_func(measure, qrel_path,
-                                                      run_path)
+                                                      run_path, show_cmd)
             return aggregated, qno_results
 
     raise ValueError('Unrecognizable measure {}'.format(measure))
 
 
 def eval_to_csv(measures, qrel_path, run_path):
+    start = time.time()
     results = {}
     for measure in measures:
-        _, result = eval_run(measure, qrel_path, run_path)
+        _, result = eval_run(measure, qrel_path, run_path, show_cmd=False)
         for q, m in result.items():
             results.setdefault(q, {})
             results[q].update(m)
@@ -305,6 +312,7 @@ def eval_to_csv(measures, qrel_path, run_path):
         columns={'index': 'variant'})
     csv_path = Path(run_path).with_suffix('.csv')
     csv_path.write_text(df.to_csv(index=False))
+    return time.time() - start
 
 
 def eval_to_csv_mp(measures, qrel, runs):
@@ -312,13 +320,13 @@ def eval_to_csv_mp(measures, qrel, runs):
     with ProcessPoolExecutor() as executor:
         for run in runs:
             future = executor.submit(eval_to_csv, measures, qrel, run)
-            future_to_run[future] = (run, time.time())
+            future_to_run[future] = run
 
-    ntasks = len(runs)
-    for i, future in enumerate(as_completed(future_to_run)):
-        run, start = future_to_run[future]
-        elap = time.time() - start
-        eprint('{:>3}/{:<3} {:4.1f}s {}'.format(i + 1, ntasks, elap, run))
+        ntasks = len(runs)
+        for i, future in enumerate(as_completed(future_to_run)):
+            run = future_to_run[future]
+            elap = future.result()
+            eprint('{:>3}/{:<3} {:4.1f}s {}'.format(i + 1, ntasks, elap, run))
 
 
 def split_comma(s):
