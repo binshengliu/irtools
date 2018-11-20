@@ -111,7 +111,7 @@ def run_indri_cluster(scheduler, indri, params, runs):
     fp_runs = [str(r.resolve()) for r in runs]
     submitted = 0
     completed = 0
-    while submitted < ntasks:
+    while submitted < ntasks and not cancel.get():
         futures = client.map(
             run_indri,
             indri_args[submitted:submitted + batchsize],
