@@ -132,6 +132,9 @@ def schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs):
         logging.info('{:>3}/{:<3} {:<9} {:<27}{} {:4.1f}s {}'.format(
             i + 1, ntasks, status, addr, loadavg, elap, run))
 
+        if cancel.get():
+            continue
+
         worker_loads = find_low_loadavg_workers(client, 1.2)
         for worker, *_ in worker_loads:
             f = client.submit(
