@@ -7,6 +7,7 @@ import signal
 import time
 from dask.distributed import Client, as_completed, get_worker, Variable, get_client
 import logging
+import os
 
 
 def eprint(*args, **kwargs):
@@ -47,7 +48,7 @@ def parse_args():
 def run_indri(args, output):
     cancel = Variable('cancel', get_client())
     if cancel.get():
-        return ('canceled', get_worker().address, 0)
+        return ('canceled', get_worker().address, 0, os.getloadavg())
 
     start = time.time()
     from subprocess import Popen, PIPE
@@ -63,12 +64,14 @@ def run_indri(args, output):
                 continue
             if cancel.get():
                 proc.kill()
-                return ('killed', get_worker().address, time.time() - start)
+                return ('killed', get_worker().address, time.time() - start,
+                        os.getloadavg())
 
     with open(output, 'wb') as f:
         f.writelines(content)
 
-    return ('completed', get_worker().address, time.time() - start)
+    return ('completed', get_worker().address, time.time() - start,
+            os.getloadavg())
 
 
 # Idle workers are the ones with fewer tasks than its ncores/nthreads.
@@ -86,16 +89,70 @@ def list_of_workers(dask_scheduler=None):
     return dask_scheduler.workers.keys()
 
 
+def get_load_info():
+    processes = len(os.sched_getaffinity(0))
+    return (get_worker().address, processes, os.getloadavg())
+
+
+def find_low_loadavg_workers(client, busy_ratio):
+    worker_info = []
+    all_workers = client.run_on_scheduler(list_of_workers)
+    for worker in all_workers:
+        future = client.submit(get_load_info, workers=[worker], pure=False)
+        w, processes, (one, five, fifteen) = future.result()
+        worker_info.append((w, processes, one, five, fifteen))
+
+    available = [(w, processes, one, five, fifteen)
+                 for w, processes, one, five, fifteen in worker_info
+                 if one < processes * busy_ratio]
+    if not available:
+        available = min(worker_info, key=lambda i: i[2] - i[1])
+    return available
+
+
+def schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs):
+    current = 0
+    worker_loads = find_low_loadavg_workers(client, 0.5)
+    run_map = {}
+    for worker, *loadavg in worker_loads:
+        logging.info('{:<27}{}'.format(worker, loadavg))
+        f = client.submit(
+            run_indri,
+            indri_args[current],
+            fp_runs[current],
+            key=fp_runs[current],
+            workers=[worker])
+        run_map[f] = runs[current]
+        current += 1
+
+    ac = as_completed(run_map)
+    for i, cf in enumerate(ac):
+        run = run_map[cf]
+        status, addr, elap, loadavg = cf.result()
+        logging.info('{:>3}/{:<3} {:<9} {:<27}{} {:4.1f}s {}'.format(
+            i + 1, ntasks, status, addr, loadavg, elap, run))
+
+        worker_loads = find_low_loadavg_workers(client, 1.2)
+        for worker, *_ in worker_loads:
+            f = client.submit(
+                run_indri,
+                indri_args[current],
+                fp_runs[current],
+                key=fp_runs[current],
+                workers=[worker])
+            run_map[f] = runs[current]
+            ac.add(f)
+            current += 1
+
+
 def run_indri_cluster(scheduler, indri, params, runs):
     client = Client(scheduler)
     available_workers = client.run_on_scheduler(list_of_workers)
     ntasks = len(params)
-    batchsize = len(available_workers) * 6
     for w in available_workers:
         logging.info('{}'.format(w))
     logging.info('{} tasks in total'.format(len(params)))
     logging.info('{} workers in total'.format(len(available_workers)))
-    logging.info('{} tasks per round'.format(batchsize))
 
     cancel = Variable('cancel', client)
     cancel.set(False)
@@ -109,25 +166,7 @@ def run_indri_cluster(scheduler, indri, params, runs):
 
     indri_args = [(str(indri.resolve()), str(p.resolve())) for p in params]
     fp_runs = [str(r.resolve()) for r in runs]
-    submitted = 0
-    completed = 0
-    while submitted < ntasks and not cancel.get():
-        futures = client.map(
-            run_indri,
-            indri_args[submitted:submitted + batchsize],
-            fp_runs[submitted:submitted + batchsize],
-            key=fp_runs[submitted:submitted + batchsize],
-        )
-        logging.info('Submitted {} tasks'.format(len(futures)))
-        run_map = dict(zip(futures, runs[submitted:submitted + batchsize]))
-        for cf in as_completed(futures):
-            completed += 1
-            run = run_map[cf]
-            status, addr, elap = cf.result()
-            logging.info('{:>3}/{:<3} {:<9} {:<27} {:4.1f}s {}'.format(
-                completed, ntasks, status, addr, elap, run))
-
-        submitted += batchsize
+    schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs)
 
 
 def check_thread_param(param_list):
