@@ -46,13 +46,14 @@ def parse_args():
 
 
 def run_indri(args, output):
+    from subprocess import Popen, PIPE
+    import os
+
     cancel = Variable('cancel', get_client())
     if cancel.get():
         return ('canceled', get_worker().address, 0, os.getloadavg())
 
     start = time.time()
-    from subprocess import Popen, PIPE
-    import os
     processes = len(os.sched_getaffinity(0)) - 1
     args = (args[0], '-threads={}'.format(processes), *args[1:])
 
@@ -94,9 +95,30 @@ def get_load_info():
     return (get_worker().address, processes, os.getloadavg())
 
 
-def find_low_loadavg_workers(client, busy_ratio):
+def get_worker_load(client):
     worker_info = []
     all_workers = client.run_on_scheduler(list_of_workers)
+    for worker in all_workers:
+        future = client.submit(get_load_info, workers=[worker], pure=False)
+        w, processes, (one, five, fifteen) = future.result()
+        worker_info.append((w, processes, one, five, fifteen))
+
+    return worker_info
+
+
+def find_low_loadavg_workers(client, busy_ratio):
+    """
+    Find workers that are both idle and have low loadavg.
+      idle and high loadavg: others are using
+      idel and low loadavg: nobody is using
+      busy and high loadavg: I'm contending with others
+      busy and low loadavg: I'm using
+    """
+    worker_info = []
+    all_workers = client.run_on_scheduler(idle_workers)
+    if not all_workers:
+        return []
+
     for worker in all_workers:
         future = client.submit(get_load_info, workers=[worker], pure=False)
         w, processes, (one, five, fifteen) = future.result()
@@ -106,16 +128,15 @@ def find_low_loadavg_workers(client, busy_ratio):
                  for w, processes, one, five, fifteen in worker_info
                  if one < processes * busy_ratio]
     if not available:
-        available = min(worker_info, key=lambda i: i[2] - i[1])
+        available = [max(worker_info, key=lambda i: i[1] - i[2])]
     return available
 
 
 def schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs):
     current = 0
-    worker_loads = find_low_loadavg_workers(client, 0.5)
+    worker_loads = find_low_loadavg_workers(client, 0.75)[:len(runs) - current]
     run_map = {}
     for worker, *loadavg in worker_loads:
-        logging.info('{:<27}{}'.format(worker, loadavg))
         f = client.submit(
             run_indri,
             indri_args[current],
@@ -129,13 +150,14 @@ def schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs):
     for i, cf in enumerate(ac):
         run = run_map[cf]
         status, addr, elap, loadavg = cf.result()
-        logging.info('{:>3}/{:<3} {:<9} {:<27}{} {:4.1f}s {}'.format(
-            i + 1, ntasks, status, addr, loadavg, elap, run))
+        logging.info('{:>3}/{:<3} {:<9} {:<27}{:<22} {:4.1f}s {}'.format(
+            i + 1, ntasks, status, addr, str(loadavg), elap, run))
 
-        if cancel.get():
+        if cancel.get() or current >= len(runs):
             continue
 
-        worker_loads = find_low_loadavg_workers(client, 1.2)
+        worker_loads = find_low_loadavg_workers(client,
+                                                0.75)[:len(runs) - current]
         for worker, *_ in worker_loads:
             f = client.submit(
                 run_indri,
@@ -150,10 +172,10 @@ def schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs):
 
 def run_indri_cluster(scheduler, indri, params, runs):
     client = Client(scheduler)
-    available_workers = client.run_on_scheduler(list_of_workers)
+    available_workers = get_worker_load(client)
     ntasks = len(params)
     for w in available_workers:
-        logging.info('{}'.format(w))
+        logging.info('{:<27} {} {:>5.2f} {:>5.2f} {:>5.2f}'.format(*w))
     logging.info('{} tasks in total'.format(len(params)))
     logging.info('{} workers in total'.format(len(available_workers)))
 
