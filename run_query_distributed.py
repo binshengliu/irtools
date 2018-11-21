@@ -134,7 +134,7 @@ def find_low_loadavg_workers(client, busy_ratio):
 
 def schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs):
     current = 0
-    worker_loads = find_low_loadavg_workers(client, 0.75)[:len(runs) - current]
+    worker_loads = find_low_loadavg_workers(client, 0.50)[:len(runs) - current]
     run_map = {}
     for worker, *loadavg in worker_loads:
         f = client.submit(
@@ -157,7 +157,7 @@ def schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs):
             continue
 
         worker_loads = find_low_loadavg_workers(client,
-                                                0.75)[:len(runs) - current]
+                                                0.50)[:len(runs) - current]
         for worker, *_ in worker_loads:
             f = client.submit(
                 run_indri,
