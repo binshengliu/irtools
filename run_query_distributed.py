@@ -6,6 +6,8 @@ import sys
 import signal
 import time
 from dask.distributed import Client, as_completed, get_worker, Variable, get_client
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
 import logging
 import os
 
@@ -45,13 +47,17 @@ def parse_args():
     return args
 
 
+def get_loadinfo():
+    return (len(os.sched_getaffinity(0)), *os.getloadavg())
+
+
 def run_indri(args, output):
     from subprocess import Popen, PIPE
     import os
 
     cancel = Variable('cancel', get_client())
     if cancel.get():
-        return ('canceled', get_worker().address, 0, os.getloadavg())
+        return ('canceled', get_worker().address, 0, get_loadinfo())
 
     start = time.time()
     processes = len(os.sched_getaffinity(0)) - 1
@@ -66,19 +72,13 @@ def run_indri(args, output):
             if cancel.get():
                 proc.kill()
                 return ('killed', get_worker().address, time.time() - start,
-                        os.getloadavg())
+                        get_loadinfo())
 
     with open(output, 'wb') as f:
         f.writelines(content)
 
     return ('completed', get_worker().address, time.time() - start,
-            os.getloadavg())
-
-
-# Idle workers are the ones with fewer tasks than its ncores/nthreads.
-def idle_workers(dask_scheduler=None):
-    workers = dask_scheduler.idle
-    return [w.address for w in workers]
+            get_loadinfo())
 
 
 def worker_tasks(dask_scheduler=None):
@@ -86,27 +86,20 @@ def worker_tasks(dask_scheduler=None):
             for w in dask_scheduler.workers.items()]
 
 
-def list_of_workers(dask_scheduler=None):
-    return dask_scheduler.workers.keys()
-
-
-def get_load_info():
-    processes = len(os.sched_getaffinity(0))
-    return (get_worker().address, processes, os.getloadavg())
-
-
 def get_worker_load(client):
+    def list_of_workers(dask_scheduler=None):
+        return dask_scheduler.workers.keys()
+
     worker_info = []
     all_workers = client.run_on_scheduler(list_of_workers)
     for worker in all_workers:
-        future = client.submit(get_load_info, workers=[worker], pure=False)
-        w, processes, (one, five, fifteen) = future.result()
-        worker_info.append((w, processes, one, five, fifteen))
+        future = client.submit(get_loadinfo, workers=[worker], pure=False)
+        worker_info.append((worker, *future.result()))
 
     return worker_info
 
 
-def find_low_loadavg_workers(client, busy_ratio):
+def get_idle_workers(client, busy_ratio):
     """
     Find workers that are both idle and have low loadavg.
       idle and high loadavg: others are using
@@ -114,51 +107,41 @@ def find_low_loadavg_workers(client, busy_ratio):
       busy and high loadavg: I'm contending with others
       busy and low loadavg: I'm using
     """
+
+    # Idle workers are the ones with fewer tasks than its ncores/nthreads.
+    def idle_workers(dask_scheduler=None):
+        workers = dask_scheduler.idle
+        return [w.address for w in workers]
+
     worker_info = []
     all_workers = client.run_on_scheduler(idle_workers)
     if not all_workers:
         return []
 
     for worker in all_workers:
-        future = client.submit(get_load_info, workers=[worker], pure=False)
-        w, processes, (one, five, fifteen) = future.result()
-        worker_info.append((w, processes, one, five, fifteen))
+        future = client.submit(get_loadinfo, workers=[worker], pure=False)
+        processes, one, five, fifteen = future.result()
+        worker_info.append((worker, processes, one, five, fifteen))
 
     available = [(w, processes, one, five, fifteen)
                  for w, processes, one, five, fifteen in worker_info
                  if one < processes * busy_ratio]
-    if not available:
-        available = [max(worker_info, key=lambda i: i[1] - i[2])]
+    # if not available:
+    #     available = [max(worker_info, key=lambda i: i[1] - i[2])]
     return available
 
 
-def schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs):
+def format_loadavg(loadavg):
+    return '({:>2d} {:>5.2f} {:>5.2f} {:>5.2f})'.format(*loadavg)
+
+
+def task_submit_thread(client, cancel, runs, indri_args, fp_runs,
+                       future_queue):
     current = 0
-    worker_loads = find_low_loadavg_workers(client, 0.50)[:len(runs) - current]
-    run_map = {}
-    for worker, *loadavg in worker_loads:
-        f = client.submit(
-            run_indri,
-            indri_args[current],
-            fp_runs[current],
-            key=fp_runs[current],
-            workers=[worker])
-        run_map[f] = runs[current]
-        current += 1
-
-    ac = as_completed(run_map)
-    for i, cf in enumerate(ac):
-        run = run_map[cf]
-        status, addr, elap, loadavg = cf.result()
-        logging.info('{:>3}/{:<3} {:<9} {:<27}{:<22} {:4.1f}s {}'.format(
-            i + 1, ntasks, status, addr, str(loadavg), elap, run))
-
-        if cancel.get() or current >= len(runs):
-            continue
-
-        worker_loads = find_low_loadavg_workers(client,
-                                                0.50)[:len(runs) - current]
-        for worker, *_ in worker_loads:
+    while True:
+        worker_loads = get_idle_workers(client, 0.50)[:len(runs) - current]
+        run_map = {}
+        for worker, *loadavg in worker_loads:
             f = client.submit(
                 run_indri,
                 indri_args[current],
@@ -166,8 +149,45 @@ def schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs):
                 key=fp_runs[current],
                 workers=[worker])
             run_map[f] = runs[current]
-            ac.add(f)
             current += 1
+            logging.info('Submit to {:<27} {:<22}'.format(
+                worker, format_loadavg(loadavg)))
+        if run_map:
+            future_queue.put(run_map)
+        if current >= len(runs) or cancel.get():
+            break
+        time.sleep(30)
+
+    logging.info('Submitting thread quit')
+    future_queue.put(None)
+
+
+def task_result_thread(ntasks, future_queue):
+    completed = 0
+    while True:
+        run_map = future_queue.get()
+        if run_map is None:
+            break
+        ac = as_completed(run_map)
+        for cf in ac:
+            run = run_map[cf]
+            status, addr, elap, loadavg = cf.result()
+            completed += 1
+            logging.info('{:>3}/{:<3} {:<9} {:<27} {:<22} {:4.1f}s {}'.format(
+                completed, ntasks, status, addr, format_loadavg(loadavg), elap,
+                run))
+
+    logging.info('Receiving thread quit')
+
+
+def schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs):
+    future_queue = Queue()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f1 = pool.submit(task_submit_thread, client, cancel, runs, indri_args,
+                         fp_runs, future_queue)
+        f2 = pool.submit(task_result_thread, ntasks, future_queue)
+        f1.result()
+        f2.result()
 
 
 def run_indri_cluster(scheduler, indri, params, runs):
@@ -175,7 +195,7 @@ def run_indri_cluster(scheduler, indri, params, runs):
     available_workers = get_worker_load(client)
     ntasks = len(params)
     for w in available_workers:
-        logging.info('{:<27} {} {:>5.2f} {:>5.2f} {:>5.2f}'.format(*w))
+        logging.info('{:<27} {:<22}'.format(w[0], format_loadavg(w[1:])))
     logging.info('{} tasks in total'.format(len(params)))
     logging.info('{} workers in total'.format(len(available_workers)))
 
@@ -185,7 +205,7 @@ def run_indri_cluster(scheduler, indri, params, runs):
     def signal_handler(sig, frame):
         cancel.set(True)
         logging.info(
-            'CTRL-C received. It may take seconds to kill running tasks.')
+            'CTRL-C received. It may take a while to kill running tasks.')
 
     signal.signal(signal.SIGINT, signal_handler)
 
