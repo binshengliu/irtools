@@ -5,7 +5,8 @@ import lxml.etree as ET
 import sys
 import signal
 import time
-from dask.distributed import Client, as_completed, get_worker, Variable, get_client
+from dask.distributed import Client, as_completed, get_worker, Variable, \
+    get_client
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
 import logging
