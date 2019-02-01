@@ -82,15 +82,6 @@ Interpolate scores in multiple rank lists. Also exploits multiprocessing.
 usage: fuse_linear.py [-h] (--weight WEIGHT | --sweep) RUN [RUN ...]
 ```
 
-## restore_ql_score.py
-
-Convert the KL score of a run file to query likelihood score, by
-multiplying the scores with its query length.
-
-```
-usage: restore_ql_score.py [-h] --param PARAM --run RUN
-```
-
 ## each_server.sh
 
 ```shell
