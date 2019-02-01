@@ -28,6 +28,14 @@ for f in splited*; do
 done
 ```
 
+## rm3.py
+
+Generate RM3 sweeping param files.
+
+```
+rm3.py --param robust.param --run robust.run --index /index/ROB04 --docs 25,30 --terms 50,100 --origs 0.1,0.2 --output test --rerank
+```
+
 ## eval_run.py
 
 Handy for evaluating many run files for many metrics. It exploits
