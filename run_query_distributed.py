@@ -34,6 +34,8 @@ def parse_args():
 
     parser.add_argument('--dry', action='store_true')
 
+    parser.add_argument('--overwrite-threads', action='store_true')
+
     parser.add_argument('--log', type=Path, help='Log path')
 
     parser.add_argument(
@@ -52,7 +54,7 @@ def get_loadinfo():
     return (len(os.sched_getaffinity(0)), *os.getloadavg())
 
 
-def run_indri(args, output):
+def run_indri(args, output, overwrite_threads=False):
     from subprocess import Popen, PIPE
     import os
 
@@ -61,8 +63,9 @@ def run_indri(args, output):
         return ('canceled', get_worker().address, 0, get_loadinfo())
 
     start = time.time()
-    processes = len(os.sched_getaffinity(0)) - 1
-    args = (args[0], '-threads={}'.format(processes), *args[1:])
+    if overwrite_threads:
+        processes = len(os.sched_getaffinity(0)) - 1
+        args = (args[0], '-threads={}'.format(processes), *args[1:])
 
     with Popen(args, stdout=PIPE, stderr=PIPE) as proc:
         content = []
@@ -138,60 +141,28 @@ def format_loadavg(loadavg):
 
 def task_submit_thread(client, cancel, runs, indri_args, fp_runs,
                        future_queue):
-    current = 0
-    while True:
-        worker_loads = get_idle_workers(client, 0.50)[:len(runs) - current]
-        run_map = {}
-        for worker, *loadavg in worker_loads:
-            f = client.submit(
-                run_indri,
-                indri_args[current],
-                fp_runs[current],
-                key=fp_runs[current],
-                workers=[worker])
-            run_map[f] = runs[current]
-            current += 1
-            logging.info('Submit to {:<27} {:<22}'.format(
-                worker, format_loadavg(loadavg)))
-        if run_map:
-            future_queue.put(run_map)
-        if current >= len(runs) or cancel.get():
-            break
-        time.sleep(30)
 
     logging.info('Submitting thread quit')
     future_queue.put(None)
 
 
-def task_result_thread(ntasks, future_queue):
-    completed = 0
-    while True:
-        run_map = future_queue.get()
-        if run_map is None:
-            break
-        ac = as_completed(run_map)
-        for cf in ac:
-            run = run_map[cf]
-            status, addr, elap, loadavg = cf.result()
-            completed += 1
-            logging.info('{:>3}/{:<3} {:<9} {:<27} {:<22} {:4.1f}s {}'.format(
-                completed, ntasks, status, addr, format_loadavg(loadavg), elap,
-                run))
-
-    logging.info('Receiving thread quit')
+def task_result_thread(ntasks, futures, runs):
+    run_map = dict(zip(futures, runs))
+    for i, cf in enumerate(as_completed(futures)):
+        run = run_map[cf]
+        status, addr, elap, loadavg = cf.result()
+        if status == 'canceled':
+            continue
+        logging.info('{:>3}/{:<3} {:<9} {:<27} {:<22} {:4.1f}s {}'.format(
+            i + 1, ntasks, status, addr, format_loadavg(loadavg), elap, run))
 
 
-def schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs):
-    future_queue = Queue()
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        f1 = pool.submit(task_submit_thread, client, cancel, runs, indri_args,
-                         fp_runs, future_queue)
-        f2 = pool.submit(task_result_thread, ntasks, future_queue)
-        f1.result()
-        f2.result()
+def schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs, overwrite):
+    futures = client.map(run_indri, indri_args, fp_runs, overwrite, key=fp_runs)
+    task_result_thread(ntasks, futures, fp_runs)
 
 
-def run_indri_cluster(scheduler, indri, params, runs):
+def run_indri_cluster(scheduler, indri, params, runs, overwrite):
     client = Client(scheduler)
     available_workers = get_worker_load(client)
     ntasks = len(params)
@@ -212,7 +183,8 @@ def run_indri_cluster(scheduler, indri, params, runs):
 
     indri_args = [(str(indri.resolve()), str(p.resolve())) for p in params]
     fp_runs = [str(r.resolve()) for r in runs]
-    schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs)
+    overwrite = [overwrite] * len(runs)
+    schedule_loop(client, ntasks, cancel, runs, indri_args, fp_runs, overwrite)
 
 
 def check_thread_param(param_list):
@@ -259,7 +231,9 @@ def main():
 
     for p in params:
         logging.info('{}'.format(str(p)))
-    run_indri_cluster(args.scheduler, args.indri, params, runs)
+    logging.info('Overwrite threads: {}'.format(args.overwrite_threads))
+
+    run_indri_cluster(args.scheduler, args.indri, params, runs, args.overwrite_threads)
 
 
 if __name__ == '__main__':
