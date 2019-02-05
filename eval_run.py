@@ -370,6 +370,7 @@ def main():
 
     eval_run_version()
 
+    args.run = [r for r in args.run if os.stat(r).st_size != 0]
     if args.csv:
         eval_to_csv_mp(args.measure, args.qrel, args.run)
         return
