@@ -98,6 +98,31 @@ def trec_eval(measure, qrel_path, run_path, show_cmd=True):
     return aggregated, qno_results
 
 
+def rbp_eval(p, qrel_path, run_path, show_cmd=True):
+    rbp_eval = str(Path(__file__).resolve().with_name('rbp_eval'))
+    args = [rbp_eval, '-H', '-q', '-p', p, qrel_path, run_path]
+    if show_cmd:
+        eprint(' '.join(args))
+    proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    lines = proc.stdout.decode('utf-8').splitlines()
+
+    aggregated = {}
+    qno_results = {}
+    for line in lines:
+        _, _, _, qno, _, _, _, value, res = line.split()
+        if 'nan' in value:
+            continue
+        if qno == 'all':
+            aggregated['rbp@{}'.format(p)] = float(value)
+            aggregated['rbp@{}_res'.format(p)] = float(res)
+        else:
+            qno_results.setdefault(qno, {})
+            qno_results[qno]['rbp@{}'.format(p)] = float(value)
+            qno_results[qno]['rbp@{}_res'.format(p)] = float(res)
+
+    return aggregated, qno_results
+
+
 def match_prefix(s, prefix):
     return s.startswith(prefix)
 
@@ -263,6 +288,20 @@ def eval_trec_general_cut(measure, qrel_path, run_path, show_cmd=True):
     return aggregated, qno_results
 
 
+def eval_rbp_p(measure, qrel_path, run_path, show_cmd=True):
+    p = measure.split('@')[1]
+    aggregated, qno_results = rbp_eval(p, qrel_path, run_path, show_cmd)
+    # aggregated = {measure: aggregated[trec_output]}
+    # qno_results = {
+    #     qno: {
+    #         measure: ms[trec_output]
+    #     }
+    #     for qno, ms in qno_results.items()
+    # }
+
+    return aggregated, qno_results
+
+
 class EvalEntry(object):
     def __init__(self, match_str, match_function, eval_func):
         self.match_str = match_str
@@ -282,6 +321,7 @@ functions = [
     EvalEntry('map', match_exact, eval_trec_default),
     EvalEntry('P@', match_prefix, eval_trec_general_k),
     EvalEntry('P_cut', match_exact, eval_trec_general_cut),
+    EvalEntry('rbp@', match_prefix, eval_rbp_p),
     EvalEntry('', match_true, eval_trec_default),
 ]
 
