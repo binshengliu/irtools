@@ -29,8 +29,8 @@ def parse_args():
         '--measure',
         metavar='MEASURE',
         required=True,
-        help='Comma separated measures. Choose from ' + ', '.join(
-            ['P', 'map', 'ndcg', 'gdeval', 'ndcg_cut']))
+        help=('Comma separated measures. '
+              'For example map,P@10,trec_ndcg@10,gdeval_ndcg@10.'))
 
     parser.add_argument(
         '--names', help='Name for LaTeX header.', default='RUN1,RUN2')
