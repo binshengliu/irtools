@@ -7,6 +7,7 @@ from eval_run import eval_run, eval_run_version
 from concurrent.futures import ProcessPoolExecutor
 import os
 from itertools import zip_longest
+from functools import reduce
 
 
 def eprint(*args, **kwargs):
@@ -32,18 +33,18 @@ def parse_args():
         help=('Comma separated measures. '
               'For example map,P@10,trec_ndcg@10,gdeval_ndcg@10.'))
 
-    parser.add_argument(
-        '--names', help='Name for LaTeX header.', default='RUN1,RUN2')
+    parser.add_argument('--names', help='Name for LaTeX header.')
 
     parser.add_argument('qrel', metavar='QREL', help='Qrel path')
 
-    parser.add_argument('run1', metavar='RUN1', help='Run file 1')
-
-    parser.add_argument('run2', metavar='RUN2', help='Run file 2')
+    parser.add_argument('run', metavar='RUN', nargs='*', help='Run files')
 
     args = parser.parse_args()
     args.measure = args.measure.split(',')
-    args.names = args.names.split(',')
+    if args.names:
+        args.names = args.names.split(',')
+    else:
+        args.names = ['RUN' + str(i) for i in range(len(args.run))]
     return args
 
 
@@ -65,32 +66,37 @@ def main():
 
     eval_args = []
     for measure in args.measure:
-        eval_args.append((measure, args.qrel, args.run1))
-        eval_args.append((measure, args.qrel, args.run2))
+        for run in args.run:
+            eval_args.append((measure, args.qrel, run))
 
     processes = min(len(os.sched_getaffinity(0)) - 1, len(eval_args))
     with ProcessPoolExecutor(max_workers=processes) as executor:
         eval_results = executor.map(eval_run, *zip(*eval_args))
 
+    nruns = len(args.run)
     table_lines = []
-    for measure, ((aggregated1, result1), (aggregated2, result2)) in zip(
-            args.measure, grouper(eval_results, 2)):
-        query_ids = list(set(result1.keys()) & set(result2.keys()))
+    for measure, runs_results in zip(args.measure, grouper(
+            eval_results, nruns)):
+        query_ids = list(
+            reduce(lambda x, y: x & y, [_[1].keys() for _ in runs_results]))
 
-        ret_measures = list(aggregated1.keys())
+        ret_measures = list(
+            reduce(lambda x, y: x & y, [_[0].keys() for _ in runs_results]))
         sort_measures(ret_measures)
 
         for m in ret_measures:
-            scores1 = [result1[q][m] for q in query_ids]
-            scores2 = [result2[q][m] for q in query_ids]
+            scores = [[single[1][q][m] for q in query_ids]
+                      for single in runs_results]
 
-            _, pvalue = stats.ttest_rel(scores1, scores2)
+            if nruns == 2:
+                _, pvalue = stats.ttest_rel(*scores)
+            else:
+                _, pvalue = stats.f_oneway(*scores)
 
-            table_lines.append((m, aggregated1[m], aggregated2[m], pvalue))
+            table_lines.append((m, *[run[0][m] for run in runs_results],
+                                pvalue))
 
-    df = pd.DataFrame(
-        table_lines,
-        columns=['Measure', args.names[0], args.names[1], 'p-value'])
+    df = pd.DataFrame(table_lines, columns=['Measure', *args.names, 'p-value'])
     print(df.to_latex(index=False, float_format=lambda f: '{:.3f}'.format(f)))
 
 
