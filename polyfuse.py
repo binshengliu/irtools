@@ -30,8 +30,8 @@ class Polyfuse:
         return output
 
     def rrf_buffers(self, *buffers):
-        # In some cases, if the user uses zip_longest to parallel
-        # fusion, there may be some None values.
+        if len(buffers) == 1:
+            buffers = buffers[0]
         buffers = [_ for _ in buffers if _]
         fps = self._write_buffers(*buffers)
         output = self.rrf_files(*[fp.name for fp in fps])
