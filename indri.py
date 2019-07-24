@@ -55,3 +55,34 @@ class IndriRunQuery:
         futures = client.map(self._run_single, qnos, queries, extra)
         output = [f.result() for f in futures]
         return output
+
+
+def main():
+    import numpy as np
+    import itertools
+    indri = IndriRunQuery(
+        None, '/research/remote/petabyte/users/indri-indexes/ROBUST04/ROB04',
+        'segsresap10:8786')
+    fbDocs = list(range(10, 201, 10))
+    fbTerms = list(range(10, 201, 10))
+    fbOrigs = list(np.linspace(0.0, 1.0, 11))
+    extra = []
+    filenames = []
+    for d, t, o in itertools.product(fbDocs, fbTerms, fbOrigs):
+        o = round(o, 1)
+        extra.append([
+            '-count=1000', '-fbDocs={}'.format(d), '-fbTerms={}'.format(t),
+            '-fbOrigWeight={}'.format(o)
+        ])
+        filenames.append('d_{}_t_{}_w_{}.run'.format(d, t, o))
+    print('Total: {}'.format(len(extra)))
+    qnos = ['301'] * len(extra)
+    queries = ['international organized crime'] * len(extra)
+    output = indri.run_distributed(qnos, queries, extra)
+    for one, fn in zip(output, filenames):
+        with open(fn, 'w') as f:
+            f.write(one)
+
+
+if __name__ == '__main__':
+    main()
