@@ -24,11 +24,12 @@ class IndriRunQuery:
         if extra:
             indri_args.extend(extra)
 
-        proc = subprocess.Popen(indri_args,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL,
-                                encoding='ascii',
-                                errors='ignore')
+        proc = subprocess.Popen(
+            indri_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            encoding='ascii',
+            errors='ignore')
         output = []
         for line in proc.stdout:
             if 'EXCEPTION' in line:
