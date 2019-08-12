@@ -44,7 +44,7 @@ def param_to_str(params):
     return ', '.join(['{:>4}'.format(v) for k, v in params])
 
 
-def cv(queries, shuffle, fold, all_evals):
+def cv(queries, shuffle, fold, all_evals, metric):
     per_fold = []
     per_query = {}
     kfold = KFold(n_splits=fold, shuffle=shuffle)
@@ -55,30 +55,22 @@ def cv(queries, shuffle, fold, all_evals):
 
         param_result = []
         for param_setting, query_evals in all_evals.items():
-            train_measure = np.mean([
-                value for query, value in query_evals.items()
-                if query in train_queries
-            ])
+            train_measure = np.mean(
+                [query_evals[metric][query] for query in train_queries])
             param_result.append((param_setting, train_measure))
 
         best_param, best_train = max(param_result, key=itemgetter(1))
         this_fold = {
-            query: value
-            for query, value in all_evals[best_param].items()
-            if query in test_queries
+            query: all_evals[best_param][metric][query]
+            for query in test_queries
         }
-        per_query.update({
-            query: (value, *best_param)
-            for query, value in all_evals[best_param].items()
-            if query in test_queries
-        })
-        this_fold = np.mean(list(this_fold.values()))
-        per_fold.append((best_train, this_fold, best_param))
+        per_query.update({query: best_param for query in test_queries})
+        best_test = np.mean(list(this_fold.values()))
+        per_fold.append((best_train, best_test, best_param))
         logging.info('Fold {} {} {:.3f}, {:.3f}'.format(
-            ith, best_param, best_train, this_fold))
+            ith, best_param, best_train, best_test))
 
-    agg = np.mean([pq[0] for pq in per_query.values()])
-    return agg, per_fold, per_query
+    return per_fold, per_query
 
 
 def parse_args():
@@ -107,7 +99,6 @@ def parse_args():
 def load_eval(csv, metric):
     df = pd.read_csv(csv, index_col=0)
     per_query = df.to_dict()
-    per_query = per_query[metric]
     return per_query
 
 
@@ -130,9 +121,9 @@ def load_all_evals(params, eval_template, metric):
         for f in as_completed(future_to_param):
             param = future_to_param[f]
             per_query = f.result()
-            all_queries.update(per_query.keys())
+            all_queries.update(per_query[metric].keys())
             result[param] = per_query
-            agg = np.mean(list(per_query.values()))
+            agg = np.mean(list(per_query[metric].values()))
             logging.info('{}: {:.3f}'.format(param, agg))
 
     try:
@@ -152,20 +143,25 @@ def main():
 
     all_evals, all_queries = load_all_evals(args.params, args.template,
                                             args.metric)
-    test_measure, per_fold, per_query = cv(all_queries, args.shuffle,
-                                           args.folds, all_evals)
+    per_fold, per_query = cv(all_queries, args.shuffle, args.folds, all_evals,
+                             args.metric)
 
     fields, _ = zip(*args.params)
 
     data = [(*params, train, test) for train, test, params in per_fold]
     df = pd.DataFrame(data, columns=fields + ('train', 'test'))
-    logging.info('\n' + df.to_latex(float_format=lambda f: '{:.3f}'.format(f)))
-    logging.info('Agg measure: {:.3f}'.format(test_measure))
+    logging.info('Per fold optimizing {}:\n'.format(args.metric) +
+                 df.to_latex(float_format=lambda f: '{:.3f}'.format(f)))
 
-    df = pd.DataFrame([(k, *v) for k, v in per_query.items()],
-                      columns=('number', 'measure',
-                               *[r[0] for r in args.params]))
-    # args.cv_per_query.write_text(df.to_csv(index=False))
+    avail_metrics = list(next(iter(all_evals.values())).keys())
+
+    df = pd.DataFrame()
+    df['number'] = all_queries
+    for m in avail_metrics:
+        df[m] = [all_evals[per_query[q]][m][q] for q in all_queries]
+    logging.info('Agg optimizing {}:\n'.format(args.metric) +
+                 df[avail_metrics].mean().to_latex(
+                     float_format=lambda f: '{:.3f}'.format(f)))
 
 
 if __name__ == '__main__':
