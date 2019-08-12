@@ -107,10 +107,7 @@ def parse_args():
 def load_eval(csv, metric):
     df = pd.read_csv(csv, index_col=0)
     per_query = df.to_dict()
-    if metric is None:
-        per_query = next(iter(per_query.values()))
-    else:
-        per_query = per_query[metric]
+    per_query = per_query[metric]
     return per_query
 
 
