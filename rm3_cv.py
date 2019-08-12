@@ -12,25 +12,20 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from eval_run import eval_run
 import numpy as np
 import sys
+import ast
 
 
 def eprint(*args, **kwargs):
     print(*args, **kwargs, file=sys.stderr, flush=True)
 
 
-def setup_logging(log_file):
-    if not os.path.exists(os.path.dirname(log_file)):
-        os.makedirs(os.path.dirname(log_file))
-
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(logging.DEBUG)
-
+def setup_logging():
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.INFO)
 
     logging.basicConfig(
         format='%(asctime)s %(message)s',
-        handlers=[file_handler, stream_handler],
+        handlers=[stream_handler],
         level=logging.DEBUG)
 
 
@@ -88,63 +83,38 @@ def cv(queries, shuffle, fold, all_evals):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Generate Indri parameter files.', add_help=False)
-    parser.add_argument('-c', '--conf', default='conf.ini', type=Path)
-
-    args, remaining_argv = parser.parse_known_args()
-    directory = args.conf.parent
-    defaults = {
-        'log': directory.joinpath('log',
-                                  Path(__file__).with_suffix('.log').name)
-    }
-
-    config = configparser.ConfigParser()
-    config.read(args.conf)
-
-    defaults.update(dict(config.items("CV")))
-
-    parser = argparse.ArgumentParser(parents=[parser])
-    parser.set_defaults(**defaults)
-
-    def join_dir(s):
-        return directory.joinpath(s)
-
-    def join_dir_str(s):
-        return str(directory.joinpath(s))
-
-    def split_comma(s):
-        return s.split(',')
+        description='General cross validation framework.', add_help=False)
 
     def str_to_bool(s):
         return s.lower() in ['true', 'yes', 't', 'y']
 
     def parse_cv_params(s):
-        cv_params = s.split(',')
-        cv_params = [f.split(':') for f in cv_params]
-        cv_params = [(field, values.split('|')) for field, values in cv_params]
-        return cv_params
+        params = ast.literal_eval(s)
+        params = list(params.items())
+        return params
 
-    parser.add_argument('--cv-params', type=parse_cv_params)
-    parser.add_argument('--cv-eval-template', type=join_dir_str)
-    parser.add_argument('--cv-qrel', type=join_dir)
-    parser.add_argument('--cv-shuffle', type=str_to_bool)
-    parser.add_argument('--cv-folds', type=int)
-    parser.add_argument('--cv-per-query', type=join_dir)
-    parser.add_argument('--log', type=join_dir)
+    parser.add_argument('--params', type=parse_cv_params)
+    parser.add_argument('--template', type=str, required=True)
+    parser.add_argument('--metric', type=str, required=True)
+    parser.add_argument('--shuffle', type=str_to_bool, default=False)
+    parser.add_argument('--folds', type=int, default=5)
 
     args = parser.parse_args()
 
     return args
 
 
-def load_eval(csv):
+def load_eval(csv, metric):
     df = pd.read_csv(csv, index_col=0)
     per_query = df.to_dict()
-    per_query = next(iter(per_query.values()))
+    if metric is None:
+        per_query = next(iter(per_query.values()))
+    else:
+        per_query = per_query[metric]
     return per_query
 
 
-def load_all_evals(params, eval_template):
+def load_all_evals(params, eval_template, metric):
     workers = len(os.sched_getaffinity(0))
     param_names, param_values = zip(*params)
     result = {}
@@ -157,7 +127,7 @@ def load_all_evals(params, eval_template):
             if not eval_name.exists():
                 logging.warn('{} does not exist'.format(eval_name))
                 continue
-            future = pool.submit(load_eval, eval_name)
+            future = pool.submit(load_eval, eval_name, metric)
             future_to_param[future] = setting
 
         for f in as_completed(future_to_param):
@@ -178,17 +148,17 @@ def load_all_evals(params, eval_template):
 def main():
     args = parse_args()
 
-    setup_logging(args.log)
+    setup_logging()
 
     logging.info('# Start cross validation')
     print_args(args)
 
-    all_evals, all_queries = load_all_evals(args.cv_params,
-                                            args.cv_eval_template)
-    test_measure, per_fold, per_query = cv(all_queries, args.cv_shuffle,
-                                           args.cv_folds, all_evals)
+    all_evals, all_queries = load_all_evals(args.params, args.template,
+                                            args.metric)
+    test_measure, per_fold, per_query = cv(all_queries, args.shuffle,
+                                           args.folds, all_evals)
 
-    fields, _ = zip(*args.cv_params)
+    fields, _ = zip(*args.params)
 
     data = [(*params, train, test) for train, test, params in per_fold]
     df = pd.DataFrame(data, columns=fields + ('train', 'test'))
@@ -197,8 +167,8 @@ def main():
 
     df = pd.DataFrame([(k, *v) for k, v in per_query.items()],
                       columns=('number', 'measure',
-                               *[r[0] for r in args.cv_params]))
-    args.cv_per_query.write_text(df.to_csv(index=False))
+                               *[r[0] for r in args.params]))
+    # args.cv_per_query.write_text(df.to_csv(index=False))
 
 
 if __name__ == '__main__':
