@@ -2,6 +2,11 @@ from concurrent.futures import ProcessPoolExecutor as Pool
 import subprocess
 import sys
 from dask.distributed import Client
+from more_itertools import unzip
+import argparse
+from pathlib import Path
+from lxml import etree
+import tempfile
 
 
 def eprint(*args, **kwargs):
@@ -10,18 +15,67 @@ def eprint(*args, **kwargs):
 
 class IndriRunQuery:
     def __init__(self, path, index, scheduler=None):
-        if not path:
-            path = 'IndriRunQuery'
-        self._args = [path, '-index=' + index.strip(), '-trecFormat=True']
+        self._path = path if path else 'IndriRunQuery'
+        self._index = index.strip()
         self._scheduler = scheduler
 
-    def _run_single(self, qno, query, extra=None):
-        indri_args = self._args + [
-            '-trecFormat=True', '-queryOffset={}'.format(qno),
-            '-query={}'.format(query)
+    def format_xml(self, qno, query, working_set=[], extra=[]):
+        root = etree.Element('parameters')
+
+        node_format = etree.SubElement(root, 'trecFormat')
+        node_format.text = 'true'
+
+        node_index = etree.SubElement(root, 'index')
+        node_index.text = self._index
+
+        for el in extra:
+            etree.SubElement(root, el[0]).text = str(el[1])
+
+        node_query = etree.SubElement(root, 'query')
+
+        etree.SubElement(node_query, 'number').text = qno
+        etree.SubElement(node_query, 'text').text = query
+
+        for docno in working_set:
+            etree.SubElement(node_query, 'workingSetDocno').text = docno
+
+        return etree.tostring(root, pretty_print=True).decode('ascii')
+
+    def run_file(self, qno, query, working_set, extra=[]):
+        string = self.format_xml(qno, query, working_set, extra)
+
+        fp = tempfile.NamedTemporaryFile(mode='w')
+        fp.write(string)
+        fp.flush()
+
+        indri_args = [self._path, fp.name]
+
+        proc = subprocess.Popen(
+            indri_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            encoding='ascii',
+            errors='ignore')
+        output = []
+        for line in proc.stdout:
+            if 'EXCEPTION' in line:
+                eprint('EXCEPTION: {} {} {}'.format(qno, query, line))
+                raise Exception('EXCEPTION: {} {} {}'.format(qno, query, line))
+            output.append(line)
+
+        fp.close()
+
+        output = ''.join(output)
+        return output
+
+    def run_cmd(self, qno, query, extra=[]):
+        indri_args = [
+            self._path, '-index=' + self._index, '-trecFormat=True',
+            '-queryOffset={}'.format(qno), '-query={}'.format(query)
         ]
 
         if extra:
+            extra = ['-{}={}'.format(*el) for el in extra]
             indri_args.extend(extra)
 
         proc = subprocess.Popen(
@@ -40,48 +94,91 @@ class IndriRunQuery:
         output = ''.join(output)
         return output
 
-    def run_batch(self, qnos, queries, extra=None):
-        with Pool() as pool:
-            output = list(pool.map(self._run_single, qnos, queries, extra))
+    def run_single(self, qno, query, working_set=[], extra=[]):
+        if working_set:
+            output = self.run_file(qno, query, working_set, extra)
+        else:
+            output = self.run_cmd(qno, query, extra)
+
         return output
 
-    def run_distributed(self, qnos, queries, extra=None):
+    def run_batch(self, qnos, queries, working_set=None, extra=None):
+        if not working_set:
+            working_set = [[]] * len(qnos)
+
+        if not extra:
+            extra = [[]] * len(qnos)
+
+        with Pool(40) as pool:
+            output = list(
+                pool.map(self.run_single, qnos, queries, working_set, extra))
+        return output
+
+    def run_distributed(self, qnos, queries, working_set=None, extra=None):
         '''Set up a cluster first:
         dask-scheduler
         env PYTHONPATH=/research/remote/petabyte/users/binsheng/trec_tools/ dask-worker segsresap10:8786 --nprocs 50 --nthreads 1 --memory-limit 0 --name segsresap10
         env PYTHONPATH=/research/remote/petabyte/users/binsheng/trec_tools/ dask-worker segsresap10:8786 --nprocs 50 --nthreads 1 --memory-limit 0 --name segsresap09
         '''
+        if not working_set:
+            working_set = [[]] * len(qnos)
+
+        if not extra:
+            extra = [[]] * len(qnos)
+
         client = Client(self._scheduler)
-        futures = client.map(self._run_single, qnos, queries, extra)
+        futures = client.map(self.run_single, qnos, queries, working_set,
+                             extra)
         output = [f.result() for f in futures]
         return output
 
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='')
+
+    parser.add_argument(
+        '--index',
+        required=True,
+        type=Path,
+        help='Index',
+    )
+
+    parser.add_argument(
+        '--query',
+        required=True,
+        help='Query: csv file, or \'-\' for stdin. Format: qno,query',
+    )
+
+    parser.add_argument(
+        '--scheduler',
+        required=True,
+        help='Index',
+    )
+
+    return parser.parse_args()
+
+
 def main():
-    import numpy as np
-    import itertools
-    indri = IndriRunQuery(
-        None, '/research/remote/petabyte/users/indri-indexes/ROBUST04/ROB04',
-        'segsresap10:8786')
-    fbDocs = list(range(10, 201, 10))
-    fbTerms = list(range(10, 201, 10))
-    fbOrigs = list(np.linspace(0.0, 1.0, 11))
-    extra = []
-    filenames = []
-    for d, t, o in itertools.product(fbDocs, fbTerms, fbOrigs):
-        o = round(o, 1)
-        extra.append([
-            '-count=1000', '-fbDocs={}'.format(d), '-fbTerms={}'.format(t),
-            '-fbOrigWeight={}'.format(o)
-        ])
-        filenames.append('d_{}_t_{}_w_{}.run'.format(d, t, o))
-    print('Total: {}'.format(len(extra)))
-    qnos = ['301'] * len(extra)
-    queries = ['international organized crime'] * len(extra)
-    output = indri.run_distributed(qnos, queries, extra)
-    for one, fn in zip(output, filenames):
-        with open(fn, 'w') as f:
-            f.write(one)
+    args = parse_arguments()
+    if os.path.exists(args.query):
+        content = Path(args.query).read_text().splitlines()
+    elif os.path == '-':
+        content = sys.stdin.read().splitlines()
+    else:
+        eprint('Incorrect query')
+        return
+
+    qnos, queries = unzip(line.split(',') for line in content)
+    qnos = list(qnos)
+    queries = list(queries)
+
+    indri = IndriRunQuery(None, args.index, args.scheduler)
+
+    output = indri.run_distributed(
+        qnos, queries,
+        [[['count', 50], ['baseline', 'okapi,k1:1.2,b:0.75,k3:0']]
+         ] * len(qnos))
+    sys.stdout.writelines(output)
 
 
 if __name__ == '__main__':
