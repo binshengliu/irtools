@@ -343,7 +343,11 @@ def eval_to_csv(measures, qrel_path, run_path):
     start = time.time()
     results = {}
     for measure in measures:
-        _, result = eval_run(measure, qrel_path, run_path, show_cmd=False)
+        try:
+            _, result = eval_run(measure, qrel_path, run_path, show_cmd=False)
+        except Exception:
+            eprint('Error {} {}'.format(run_path, measure))
+            continue
         for q, m in result.items():
             results.setdefault(q, {})
             results[q].update(m)
