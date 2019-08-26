@@ -343,6 +343,16 @@ def split_comma(s):
     return s.split(',')
 
 
+def find_qrel(s):
+    if Path(s).exists():
+        return s
+    default = {'robust04': str(Path(__file__).resolve().with_name('robust04.qrels'))}
+    path = default.get(s, None)
+    if not path:
+        raise argparse.ArgumentTypeError('Unknown qrel path or identifier {}'.format(s))
+
+    return path
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Sort run files based on measure.')
@@ -374,7 +384,7 @@ def parse_args():
         action='store_true',
         help='write per query evaluation into individual csv files')
 
-    parser.add_argument('qrel', metavar='QREL', help='qrel')
+    parser.add_argument('qrel', metavar='QREL', help='Qrels path', type=find_qrel)
 
     parser.add_argument('run', nargs='*', metavar='RUN', help='run files')
 
