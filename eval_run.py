@@ -348,21 +348,31 @@ def parse_args():
         description='Sort run files based on measure.')
 
     parser.add_argument(
+        '-m',
         '--measure',
         required=True,
         type=split_comma,
-        help='Measure. For trec ndcg, use ndcg_cut.20; '
-        'for gdeval ndcg, use gdeval@20 ...')
+        help='comma separated measurements; for trec ndcg, use trec_ndcg@20; '
+        'for gdeval ndcg, use gdeval_ndcg@20; e.g. -m map,P@10,gdeval_ndcg@10')
 
     parser.add_argument(
-        '--sort',
         '-s',
-        help='Sort by, like gdeval_ndcg@20, otherwise the first measure')
+        '--sort',
+        metavar='MEASURE',
+        help='sort by a MEASURE specified in --measure')
 
     parser.add_argument(
+        '-f',
+        '--format',
+        choices=['latex', 'csv'],
+        default='latex',
+        help='overall output format; default latex')
+
+    parser.add_argument(
+        '-i',
         '--individual',
         action='store_true',
-        help='Write per query evaluation into a csv file.')
+        help='write per query evaluation into individual csv files')
 
     parser.add_argument('qrel', metavar='QREL', help='qrel')
 
@@ -415,11 +425,16 @@ def main():
             df.to_csv(Path(filename).with_suffix('.csv'), index=False)
 
     overall_results = [[f] + values for f, values in overall_results.items()]
-    df = pd.DataFrame(overall_results, columns=['FILE'] + measures)
+    df = pd.DataFrame(overall_results, columns=['File'] + measures)
     if args.sort is not None and args.sort in df.columns:
         df = df.sort_values(by=args.sort, ascending=False)
-    print(df.to_latex(index=False, float_format=lambda f: '{:.3f}'.format(f)))
 
+    if args.format == 'latex':
+        print(df.to_latex(index=False, float_format='%.3f'))
+    elif args.format == 'csv':
+        print(df.to_csv(index=False, float_format='%.3f'))
+    else:
+        assert False, 'Unsupported format {}'.format(args.format)
 
 if __name__ == '__main__':
     main()
