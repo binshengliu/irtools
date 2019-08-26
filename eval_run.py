@@ -339,40 +339,6 @@ def eval_run(measure, qrel_path, run_path, show_cmd=True):
     raise ValueError('Unrecognizable measure {}'.format(measure))
 
 
-def eval_to_csv(measures, qrel_path, run_path):
-    start = time.time()
-    results = {}
-    for measure in measures:
-        try:
-            _, result = eval_run(measure, qrel_path, run_path, show_cmd=False)
-        except Exception:
-            eprint('Error {} {}'.format(run_path, measure))
-            continue
-        for q, m in result.items():
-            results.setdefault(q, {})
-            results[q].update(m)
-
-    df = pd.DataFrame(results).T.reset_index().rename(
-        columns={'index': 'number'})
-    csv_path = Path(run_path).with_suffix('.csv')
-    csv_path.write_text(df.to_csv(index=False))
-    return time.time() - start
-
-
-def eval_to_csv_mp(measures, qrel, runs):
-    future_to_run = {}
-    with ProcessPoolExecutor() as executor:
-        for run in runs:
-            future = executor.submit(eval_to_csv, measures, qrel, run)
-            future_to_run[future] = run
-
-        ntasks = len(runs)
-        for i, future in enumerate(as_completed(future_to_run)):
-            run = future_to_run[future]
-            elap = future.result()
-            eprint('{:>3}/{:<3} {:4.1f}s {}'.format(i + 1, ntasks, elap, run))
-
-
 def split_comma(s):
     return s.split(',')
 
@@ -394,7 +360,7 @@ def parse_args():
         help='Sort by, like gdeval_ndcg@20, otherwise the first measure')
 
     parser.add_argument(
-        '--csv',
+        '--individual',
         action='store_true',
         help='Write per query evaluation into a csv file.')
 
@@ -415,9 +381,6 @@ def main():
     eval_run_version()
 
     args.run = [r for r in args.run if os.stat(r).st_size != 0]
-    if args.csv:
-        eval_to_csv_mp(args.measure, args.qrel, args.run)
-        return
 
     measures = []
     eval_args = []
@@ -426,21 +389,33 @@ def main():
 
     processes = min(len(os.sched_getaffinity(0)) - 1, len(eval_args))
     with ProcessPoolExecutor(max_workers=processes) as executor:
-        eval_results = executor.map(eval_run, *zip(*eval_args))
-    eval_results, _ = zip(*eval_results)
+        eval_results = list(executor.map(eval_run, *zip(*eval_args)))
+    eval_results, individuals = zip(*eval_results)
 
-    results = {}
-    for (filename, measure), result in zip(
-            itertools.product(args.run, args.measure), eval_results):
-        results.setdefault(filename, [])
+    overall_results = {}
+    individual_result = {}
+    for (filename, measure), result, individual in zip(
+            itertools.product(args.run, args.measure), eval_results, individuals):
+        overall_results.setdefault(filename, [])
 
         for m, value in result.items():
             if m not in measures:
                 measures.append(m)
-            results[filename].append(value)
+            overall_results[filename].append(value)
 
-    results = [[f] + values for f, values in results.items()]
-    df = pd.DataFrame(results, columns=['FILE'] + measures)
+        individual_result.setdefault(filename, {})
+        for qno, m in individual.items():
+            individual_result[filename].setdefault(qno, {})
+            individual_result[filename][qno].update(m)
+
+    if args.individual:
+        for filename, individual in individual_result.items():
+            df = pd.DataFrame.from_dict(data=individual, orient='index')
+            df = df.reset_index().rename(columns={'index': 'number'})
+            df.to_csv(Path(filename).with_suffix('.csv'), index=False)
+
+    overall_results = [[f] + values for f, values in overall_results.items()]
+    df = pd.DataFrame(overall_results, columns=['FILE'] + measures)
     if args.sort is not None and args.sort in df.columns:
         df = df.sort_values(by=args.sort, ascending=False)
     print(df.to_latex(index=False, float_format=lambda f: '{:.3f}'.format(f)))
