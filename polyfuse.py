@@ -1,5 +1,8 @@
 import tempfile
 import subprocess
+import os
+from pathlib import Path
+from itertools import filterfalse
 
 
 class Polyfuse:
@@ -23,18 +26,29 @@ class Polyfuse:
             fp.write(buffer)
         return fps
 
-    def rrf_files(self, *runfiles):
-        args = [self._path, 'rrf', *runfiles]
+    def rrf_files(self, files, weights=None):
+        nonexist = list(filterfalse(os.path.exists, files))
+        if nonexist:
+            raise Exception('Invalid paths {}'.format(' '.join(nonexist)))
+
+        if weights and len(files) != len(weights):
+            raise Exception('Files and weights should match {} != {}'.format(
+                len(files), len(weights)))
+
+        if len(files) == 1:
+            return Path(files[0]).read_text()
+
+        args = [self._path, 'rrf', *files]
+        if weights:
+            args.insert(2, '-w {}'.format(','.join(map(str, weights))))
+
         proc = subprocess.run(args, stdout=subprocess.PIPE)
         output = proc.stdout.decode('utf-8')
         return output
 
-    def rrf_buffers(self, *buffers):
-        if len(buffers) == 1:
-            buffers = buffers[0]
-        buffers = [_ for _ in buffers if _]
+    def rrf_buffers(self, buffers, weights=None):
         fps = self._write_buffers(*buffers)
-        output = self.rrf_files(*[fp.name for fp in fps])
+        output = self.rrf_files([fp.name for fp in fps], weights)
         for fp in fps:
             fp.close()
 
