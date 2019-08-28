@@ -72,3 +72,8 @@ class RelevanceModel:
         rm = ['{:f} {}'.format(pair[1], pair[0]) for pair in rm]
         rm = '#weight({})'.format(' '.join(rm))
         return rm
+
+    def bag_of_words(self, nterms=None):
+        rm = list(sorted(self._rm.keys(), reverse=True, key=self._rm.get))
+        rm = ' '.join(rm[:nterms])
+        return rm
