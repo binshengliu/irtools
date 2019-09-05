@@ -16,8 +16,8 @@ def _tokenize(text):
         'ascii',
         '-lowerCase',
         '-preserveLines',
-        '-options',
-        'ptb3Escaping=false,normalizeOtherBrackets=false,asciiQuotes=true,latexQuotes=false',
+        # '-options',
+        # 'ptb3Escaping=false,normalizeOtherBrackets=false,asciiQuotes=true,latexQuotes=false',
     ]
     proc = subprocess.run(args,
                           input=text,
