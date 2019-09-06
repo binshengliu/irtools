@@ -1,16 +1,20 @@
+#!/usr/bin/env python3
+
 import os
 from concurrent.futures import ProcessPoolExecutor as Pool
 import subprocess
 from more_itertools import divide
 from itertools import chain
 from pathlib import Path
+import argparse
+import sys
 
 
 def _tokenize(text):
     args = [
         'java',
         '-cp',
-        Path(__file__).with_name('stanford-corenlp-3.9.2.jar'),
+        Path(__file__).resolve().with_name('stanford-corenlp-3.9.2.jar'),
         'edu.stanford.nlp.process.PTBTokenizer',
         '-encoding',
         'ascii',
@@ -43,6 +47,36 @@ def _tokenize_mp(lines):
 
 def tokenize(content):
     if isinstance(content, str):
-        return '\n'.join(_tokenize_mp(content.splitlines()))
+        return ''.join([l + '\n' for l in _tokenize_mp(content.splitlines())])
     else:
         return _tokenize_mp(content)
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description='Multi-processing tokenizer for huge text')
+
+    parser.add_argument('-i', '--input', default=sys.stdin)
+    parser.add_argument('-o', '--output', default=sys.stdout)
+
+    return parser.parse_args()
+
+
+def main():
+    args = parse_arguments()
+
+    if args.input == sys.stdin:
+        texts = args.input.read()
+    else:
+        texts = Path(args.input).read_text()
+
+    texts = tokenize(texts)
+
+    if args.output == sys.stdout:
+        args.output.write(texts)
+    else:
+        Path(args.output).write_text(texts)
+
+
+if __name__ == '__main__':
+    main()
