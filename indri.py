@@ -7,6 +7,8 @@ import argparse
 from pathlib import Path
 from lxml import etree
 import tempfile
+import os
+import string
 
 
 def eprint(*args, **kwargs):
@@ -50,12 +52,11 @@ class IndriRunQuery:
 
         indri_args = [self._path, fp.name]
 
-        proc = subprocess.Popen(
-            indri_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            encoding='ascii',
-            errors='ignore')
+        proc = subprocess.Popen(indri_args,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL,
+                                encoding='ascii',
+                                errors='ignore')
         output = []
         for line in proc.stdout:
             if 'EXCEPTION' in line:
@@ -78,12 +79,11 @@ class IndriRunQuery:
             extra = ['-{}={}'.format(*el) for el in extra]
             indri_args.extend(extra)
 
-        proc = subprocess.Popen(
-            indri_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            encoding='ascii',
-            errors='ignore')
+        proc = subprocess.Popen(indri_args,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL,
+                                encoding='ascii',
+                                errors='ignore')
         output = []
         for line in proc.stdout:
             if 'EXCEPTION' in line:
@@ -150,6 +150,13 @@ def parse_arguments():
     )
 
     parser.add_argument(
+        '--sep',
+        required=True,
+        choices=[',', 'space', 'none'],
+        help='Separator between qno and query',
+    )
+
+    parser.add_argument(
         '--scheduler',
         required=True,
         help='Index',
@@ -162,22 +169,31 @@ def main():
     args = parse_arguments()
     if os.path.exists(args.query):
         content = Path(args.query).read_text().splitlines()
-    elif os.path == '-':
+    elif args.query == '-':
         content = sys.stdin.read().splitlines()
     else:
         eprint('Incorrect query')
         return
 
-    qnos, queries = unzip(line.split(',') for line in content)
+    if args.sep != 'none':
+        sep = None if args.sep == 'space' else args.sep
+        qnos, queries = unzip(line.split(sep, maxsplit=1) for line in content)
+    else:
+        queries = content
+        qnos = list(map(str, range(len(queries))))
+
+    trans = str.maketrans('', '', string.punctuation)
+    queries = [s.translate(trans) for s in queries]
+
     qnos = list(qnos)
     queries = list(queries)
 
-    indri = IndriRunQuery(None, args.index, args.scheduler)
+    indri = IndriRunQuery(None, str(args.index), args.scheduler)
 
-    output = indri.run_distributed(
-        qnos, queries,
-        [[['count', 50], ['baseline', 'okapi,k1:1.2,b:0.75,k3:0']]
-         ] * len(qnos))
+    output = indri.run_distributed(qnos,
+                                   queries,
+                                   working_set=None,
+                                   extra=[[['count', 5]]] * len(qnos))
     sys.stdout.writelines(output)
 
 
