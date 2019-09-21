@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from concurrent.futures import ProcessPoolExecutor as Pool
 import subprocess
 import sys
@@ -188,12 +189,14 @@ def main():
     qnos = list(qnos)
     queries = list(queries)
 
-    indri = IndriRunQuery(None, str(args.index), args.scheduler)
+    indri = IndriRunQuery(None, str(args.index.resolve()), args.scheduler)
 
-    output = indri.run_distributed(qnos,
-                                   queries,
-                                   working_set=None,
-                                   extra=[[['count', 5]]] * len(qnos))
+    output = indri.run_distributed(
+        qnos,
+        queries,
+        working_set=None,
+        extra=[[['count', 10], ['baseline', 'okapi,k1:0.9,b:0.4,k3:0']]] *
+        len(qnos))
     sys.stdout.writelines(output)
 
 
