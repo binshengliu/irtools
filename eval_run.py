@@ -321,6 +321,9 @@ functions = [
     EvalEntry('map', match_exact, eval_trec_default),
     EvalEntry('P@', match_prefix, eval_trec_general_k),
     EvalEntry('P_cut', match_exact, eval_trec_general_cut),
+    EvalEntry('recip_rank', match_exact, eval_trec_default),
+    EvalEntry('mrr', match_exact, eval_trec_default),
+    EvalEntry('rr', match_exact, eval_trec_default),
     EvalEntry('rbp@', match_prefix, eval_rbp_p),
     EvalEntry('', match_true, eval_trec_default),
 ]
