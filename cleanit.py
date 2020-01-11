@@ -15,7 +15,7 @@ def eprint(*args, **kwargs):
 def process_line(args):
     line, delimiter, field, lower, alnum, eol = args
 
-    fields = line.split(delimiter)
+    fields = line.rstrip('\n').split(delimiter)
 
     if field is None:
         field = range(len(fields))
