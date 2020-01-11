@@ -28,7 +28,7 @@ def process_line(args):
             s = ''.join(s)
         if lower:
             s = s.lower()
-        fields[f] = s
+        fields[f] = ' '.join(s.split())
 
     result = delimiter.join(fields) + eol
     return result
