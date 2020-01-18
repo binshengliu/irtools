@@ -7,6 +7,7 @@ setup(
     author='Binsheng Liu',
     author_email='liubinsheng@gmail.com',
     package_dir={"": "src"},
+    scripts=["scripts/each_server.sh"],
     packages=find_packages("src"),
     include_package_data=True,
     install_requires=[
