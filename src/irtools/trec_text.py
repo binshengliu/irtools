@@ -1,4 +1,5 @@
 from more_itertools import first_true
+from tqdmf import tqdmf
 
 
 def _parse_one_record(buffers):
@@ -19,12 +20,11 @@ def _parse_one_record(buffers):
 
 def trec_text(path):
     buffers = []
-    with open(path, 'r') as f:
-        for line in f:
-            if not line:
-                continue
-            buffers.append(line)
-            if line.startswith('</DOC>'):
-                dno, text = _parse_one_record(buffers)
-                yield dno, text
-                buffers = []
+    for line in tqdmf(path):
+        if not line:
+            continue
+        buffers.append(line)
+        if line.startswith('</DOC>'):
+            dno, text = _parse_one_record(buffers)
+            yield dno, text
+            buffers = []
