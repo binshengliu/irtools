@@ -11,6 +11,7 @@ setup(
     packages=find_packages("src"),
     include_package_data=True,
     install_requires=[
-        'unidecode', 'tqdm', 'scipy', 'numpy', 'more_itertools', 'pandas'
+        'unidecode', 'tqdm', 'scipy', 'numpy', 'more_itertools', 'pandas',
+        'ftfy'
     ],
 )
