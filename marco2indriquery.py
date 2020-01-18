@@ -4,20 +4,17 @@ import spacy
 import ftfy
 import sys
 
-nlp = spacy.load('en_core_web_lg', disable=['tagger', 'parser', 'ner'])
-trans_table = str.maketrans('', '', string.punctuation)
 
-
-def convert_query(index, query):
-    qno, content = query.strip().split(maxsplit=1)
+def convert(index, line):
+    try:
+        number, content = line.strip().split(maxsplit=1)
+    except Exception:
+        number = line.strip()
+        content = 'this is an empty query'
     content = ftfy.fix_text(content)
-    content = ''.join(filter(lambda x: x in string.printable, content))
-    content = nlp(content)
-    content = [x.text.translate(trans_table) for x in content]
-    content = [x for x in content if x]
-    content = ' '.join(content).lower()
+    content = ' '.join(content.split()).lower()
     template = '  <query>\n    <number>{}</number>\n    <text>{}</text>\n  </query>\n'
-    output = template.format(qno, content)
+    output = template.format(number, content)
     return output
 
 
@@ -37,7 +34,7 @@ def main():
     # """.splitlines()
     text = sys.stdin
     for index, query_line in enumerate(text):
-        query_line = convert_query(index, query_line)
+        query_line = convert(index, query_line)
         sys.stdout.write(query_line)
     sys.stdout.write('</parameters>\n')
 

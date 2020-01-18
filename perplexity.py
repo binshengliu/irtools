@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from pytorch_pretrained_bert import OpenAIGPTLMHeadModel as Model, OpenAIGPTTokenizer as Tokenizer
+from transformers import OpenAIGPTLMHeadModel as Model, OpenAIGPTTokenizer as Tokenizer
 from concurrent.futures import ProcessPoolExecutor as Pool
 from more_itertools import chunked
 from itertools import chain, count
@@ -30,9 +30,11 @@ def score(sentence, gpu=0):
         try:
             if len(sent.split()) == 1:
                 sent = sent + ' ' + sent
+            nwords = len(sent.split())
             tensor_input = torch.tensor([tokenizer.encode(sent)]).cuda(gpu)
             loss = model(tensor_input, lm_labels=tensor_input)
-            results.append(math.exp(loss.item()))
+            ppl = math.exp(loss.item())
+            results.append((ppl, ppl * nwords))
         except Exception:
             print('ERROR {}'.format(sent), flush=True)
             eprint('ERROR {}'.format(sent))
@@ -54,7 +56,7 @@ def main():
     with Pool(2) as pool:
         result = pool.map(score, queries, count())
         for s in chain.from_iterable(result):
-            print(s, flush=True)
+            print('\t'.join(map(str, s)), flush=True)
 
 
 if __name__ == '__main__':
