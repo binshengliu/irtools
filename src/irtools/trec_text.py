@@ -1,5 +1,5 @@
 from more_itertools import first_true
-from tqdmf import tqdmf
+from .tqdmf import tqdmf
 
 
 def _parse_one_record(buffers):
