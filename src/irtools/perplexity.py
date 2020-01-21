@@ -32,8 +32,8 @@ def score(sentence, gpu=0):
                 sent = sent + ' ' + sent
             nwords = len(sent.split())
             tensor_input = torch.tensor([tokenizer.encode(sent)]).cuda(gpu)
-            loss = model(tensor_input, lm_labels=tensor_input)
-            ppl = math.exp(loss.item())
+            loss = model(tensor_input, labels=tensor_input)
+            ppl = math.exp(loss[0].item())
             results.append((ppl, ppl * nwords))
         except Exception:
             print('ERROR {}'.format(sent), flush=True)
