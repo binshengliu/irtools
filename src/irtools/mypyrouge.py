@@ -34,16 +34,21 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def main():
-    args = parse_arguments()
+def rouge_pair(hyp, ref):
     with Pool() as pool:
-        result = pool.map(docalc, args.hyp, args.ref)
+        result = pool.map(docalc, hyp, ref)
         result = list(tqdm(result))
     metrics = {}
     for x in result:
         for m, v in x.items():
             metrics.setdefault(m, [])
             metrics[m].append(v)
+    return metrics
+
+
+def main():
+    args = parse_arguments()
+    metrics = rouge_pair(args.hyp, args.ref)
     metrics = [(k, np.mean(v)) for k, v in metrics.items()]
     print(metrics)
 
