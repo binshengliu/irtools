@@ -22,11 +22,12 @@ def score(sentence, gpu=0):
     tokenizer = Tokenizer.from_pretrained('openai-gpt')
 
     results = []
-    for sent in tqdm(sentence,
-                     total=len(sentence),
-                     position=gpu,
-                     leave=False,
-                     desc=str(gpu)):
+    for sent in tqdm(
+            sentence,
+            total=len(sentence),
+            position=gpu,
+            leave=False,
+            desc=str(gpu)):
         try:
             if len(sent.split()) == 1:
                 sent = sent + ' ' + sent
@@ -47,16 +48,21 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def main():
-    args = parse_arguments()
-    queries = args.query.read().splitlines()
+def perplexity(queries):
     total = len(queries)
     chunksize = math.ceil(total / 2)
     queries = chunked(queries, chunksize)
     with Pool(2) as pool:
         result = pool.map(score, queries, count())
-        for s in chain.from_iterable(result):
-            print('\t'.join(map(str, s)), flush=True)
+        result = list(chain.from_iterable(result))
+    return result
+
+
+def main():
+    args = parse_arguments()
+    queries = args.query.read().splitlines()
+    result = perplexity(queries)
+    print('\t'.join(map(str, result)), flush=True)
 
 
 if __name__ == '__main__':
