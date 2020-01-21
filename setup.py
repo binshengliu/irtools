@@ -7,7 +7,10 @@ setup(
     author='Binsheng Liu',
     author_email='liubinsheng@gmail.com',
     package_dir={"": "src"},
-    scripts=["scripts/each_server.sh"],
+    scripts=[
+        "scripts/each_server.sh", "src/irtools/perplexity.py",
+        "src/irtools/mypyrouge.py"
+    ],
     packages=find_packages("src"),
     include_package_data=True,
     install_requires=[
