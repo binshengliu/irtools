@@ -2,9 +2,10 @@
 from transformers import OpenAIGPTLMHeadModel as Model, OpenAIGPTTokenizer as Tokenizer
 from concurrent.futures import ProcessPoolExecutor as Pool
 from more_itertools import chunked
-from itertools import chain, count
+from itertools import chain, count, repeat
 from tqdm import tqdm
 import argparse
+import GPUtil
 import torch
 import math
 import sys
@@ -35,7 +36,7 @@ def score(sentence, gpu=0):
             tensor_input = torch.tensor([tokenizer.encode(sent)]).cuda(gpu)
             loss = model(tensor_input, labels=tensor_input)
             ppl = math.exp(loss[0].item())
-            results.append((ppl, ppl * nwords))
+            results.append((ppl, ppl * nwords, ppl / nwords))
         except Exception:
             print('ERROR {}'.format(sent), flush=True)
             eprint('ERROR {}'.format(sent))
@@ -49,20 +50,27 @@ def parse_arguments():
 
 
 def perplexity(queries):
+    deviceIDs = GPUtil.getAvailable(
+        order='first', limit=4, maxLoad=0.5, maxMemory=0.5)
+    nproc = len(deviceIDs)
+    if nproc == 0:
+        raise ValueError('No available GPU')
+
     total = len(queries)
-    chunksize = math.ceil(total / 2)
+    chunksize = math.ceil(total / nproc)
     queries = chunked(queries, chunksize)
-    with Pool(2) as pool:
-        result = pool.map(score, queries, count())
+    with Pool(nproc) as pool:
+        result = pool.map(score, queries, deviceIDs)
         result = list(chain.from_iterable(result))
     return result
 
 
 def main():
     args = parse_arguments()
+
     queries = args.query.read().splitlines()
     result = perplexity(queries)
-    print('\t'.join(map(str, result)), flush=True)
+    print(''.join(['{}\t{}\t{}\n'.format(*x) for x in result]), end='')
 
 
 if __name__ == '__main__':
