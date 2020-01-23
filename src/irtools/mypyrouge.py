@@ -5,6 +5,11 @@ import numpy as np
 import argparse
 import rouge
 
+# pip install py-rouge
+
+# for rouge-s
+# https://github.com/neural-dialogue-metrics/rouge
+
 
 def prepare_results(m, p, r, f):
     return '\t{}:\t{}: {:5.2f}\t{}: {:5.2f}\t{}: {:5.2f}'.format(
@@ -24,6 +29,21 @@ def docalc(args):
 
     scores = evaluator.get_scores(hyp, ref)
     scores = {k: v['p'] for k, v in scores.items()}
+
+    return scores
+
+
+def docalc2(args):
+    hyp, ref = args
+    hyp = hyp.split()
+    ref = ref.split()
+    scores = {'rouge-s': rouge.rouge_s_sentence_level(hyp, ref).precision,
+              'rouge-w': rouge.rouge_w_sentence_level(hyp, ref).precision,
+              'rouge-l': rouge.rouge_l_sentence_level(hyp, ref).precision,
+              'rouge-1': rouge.rouge_n_sentence_level(hyp, ref, 1).precision,
+              'rouge-2': rouge.rouge_n_sentence_level(hyp, ref, 2).precision,
+              'rouge-3': rouge.rouge_n_sentence_level(hyp, ref, 3).precision,
+              'rouge-4': rouge.rouge_n_sentence_level(hyp, ref, 4).precision}
 
     return scores
 
