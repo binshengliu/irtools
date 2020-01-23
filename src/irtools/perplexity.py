@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-from transformers import OpenAIGPTLMHeadModel as Model, OpenAIGPTTokenizer as Tokenizer
+from transformers import OpenAIGPTLMHeadModel as Model
+from transformers import OpenAIGPTTokenizer as Tokenizer
 from concurrent.futures import ProcessPoolExecutor as Pool
 from more_itertools import chunked
 from itertools import chain, count, repeat
@@ -34,7 +35,7 @@ def score(sentence, gpu=0):
                 sent = sent + ' ' + sent
             nwords = len(sent.split())
             tensor_input = torch.tensor([tokenizer.encode(sent)]).cuda(gpu)
-            loss = model(tensor_input, labels=tensor_input)
+            loss = model(input_ids=tensor_input, labels=tensor_input)
             ppl = math.exp(loss[0].item())
             results.append((ppl, ppl * nwords, ppl / nwords))
         except Exception:
