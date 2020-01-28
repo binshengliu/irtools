@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 from transformers import (OpenAIGPTLMHeadModel, OpenAIGPTTokenizer,
                           GPT2LMHeadModel, GPT2Tokenizer)
-from multiprocessing import Process, Queue
-from more_itertools import chunked
-from tqdm import trange
+from multiprocessing import Pool, Queue
+from tqdm import tqdm
 import argparse
 import GPUtil
 import torch
@@ -20,27 +19,32 @@ def eprint(*args, **kwargs):
     print(*args, **kwargs, file=sys.stderr, flush=True)
 
 
-def worker(batch_sent, model_type, model_name, gpu, q):
+def worker(sent):
     # Load pre-trained model (weights)
+    model, tokenizer, gpu = worker.model, worker.tokenizer, worker.gpu
+    try:
+        nwords = len(sent.split())
+        if nwords == 1:
+            sent += ' .'
+        tensor_input = torch.tensor([tokenizer.encode(sent)]).cuda(gpu)
+        loss = model(input_ids=tensor_input, labels=tensor_input)
+        ppl = math.exp(loss[0].item())
+        return ppl, ppl * nwords, ppl / nwords
+    except Exception:
+        eprint('ERROR {}'.format(sent))
+        return None, None, None
+
+
+def init_worker(model_type, model_name, available_ids):
+    gpu = available_ids.get()
+    eprint(f'Initialize on GPU {gpu}')
     model_class, tokenizer_class = MODEL_CLASSES[model_type]
     model = model_class.from_pretrained(model_name).cuda(gpu)
     model.eval()
-    # Load pre-trained model tokenizer (vocabulary)
     tokenizer = tokenizer_class.from_pretrained(model_name)
-
-    for id, sent in batch_sent:
-        try:
-            nwords = len(sent.split())
-            if nwords == 1:
-                sent += ' .'
-            tensor_input = torch.tensor([tokenizer.encode(sent)]).cuda(gpu)
-            loss = model(input_ids=tensor_input, labels=tensor_input)
-            ppl = math.exp(loss[0].item())
-            q.put((id, ppl, ppl * nwords, ppl / nwords))
-        except Exception:
-            q.put((id, None, None, None))
-            eprint('ERROR {}'.format(sent))
-    return
+    worker.model = model
+    worker.tokenizer = tokenizer
+    worker.gpu = gpu
 
 
 def parse_arguments():
@@ -58,32 +62,27 @@ def perplexity(queries, model_type='openai-gpt', model_name='openai-gpt'):
     if nproc == 0:
         raise ValueError('No available GPU')
 
-    queries = list(enumerate(queries))
+    if not hasattr(queries, '__len__'):
+        queries = list(queries)
     total = len(queries)
-    queries = list(chunked(queries, math.ceil(total / nproc)))
-    procs = []
-    q = Queue()
-    for gpu, batch_sent in zip(deviceIDs, queries):
-        proc = Process(
-            target=worker, args=(batch_sent, model_type, model_name, gpu, q))
-        proc.start()
-        procs.append(proc)
-    results = [None] * total
-    for _ in trange(total):
-        id, *ppls = q.get()
-        results[id] = ppls
-    for proc in procs:
-        proc.join()
+    available_ids = Queue()
+    for gpu in deviceIDs:
+        available_ids.put(gpu)
+    with Pool(
+            len(deviceIDs),
+            initializer=init_worker,
+            initargs=(model_type, model_name, available_ids)) as pool:
+        results = pool.imap(worker, queries)
+        results = list(tqdm(results, total=total))
 
     return results
 
 
 def main():
     args = parse_arguments()
-
     queries = args.query.read().splitlines()
     result = perplexity(queries, args.model_type, args.model_name)
-    print(''.join(['{}\t{}\t{}\n'.format(*x) for x in result]), end='')
+    print(''.join(['\t'.join(map(str, x)) + '\n' for x in result]), end='')
 
 
 if __name__ == '__main__':
