@@ -31,6 +31,8 @@ def worker(batch_sent, model_type, model_name, gpu, q):
     for id, sent in batch_sent:
         try:
             nwords = len(sent.split())
+            if nwords == 1:
+                sent += ' .'
             tensor_input = torch.tensor([tokenizer.encode(sent)]).cuda(gpu)
             loss = model(input_ids=tensor_input, labels=tensor_input)
             ppl = math.exp(loss[0].item())
