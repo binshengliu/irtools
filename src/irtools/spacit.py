@@ -1,10 +1,9 @@
-from multiprocessing import Manager, Pool
-from itertools import chain, count, repeat
-from more_itertools import divide
+from multiprocessing import Process, Queue
+from more_itertools import divide, flatten
 from unidecode import unidecode
-from tqdm import tqdm
-import argparse
+from tqdm import trange
 import threading
+import argparse
 import spacy
 import ftfy
 import sys
@@ -53,33 +52,31 @@ def process_line(nlp, line, delimiter, field, lower, alnum, eol, form,
     return result
 
 
-def worker(args):
-    id, lines, q, delimiter, field, lower, alnum, eol, form, remove_stop, skeleton = args
-    lines = list(lines)
-    if not lines:
-        return []
+def worker(job_id, batch, delimiter, field, lower, alnum, eol, form,
+           remove_stop, skeleton, out_q, ui_q):
     if skeleton:
         nlp = spacy.load('en_core_web_lg', disable=['parser', 'ner'])
     else:
         nlp = spacy.load('en_core_web_lg', disable=['parser', 'ner', 'tagger'])
     nlp.max_length = 100000000
 
-    result = []
+    results = []
     processed = 0
-    for line in lines:
+    for line in batch:
         line = process_line(nlp, line, delimiter, field, lower, alnum, eol,
                             form, remove_stop, skeleton)
-        result.append(line)
+        results.append(line)
         processed += 1
         if processed % 1024 == 0:
-            q.put(processed)
+            ui_q.put(processed)
             processed = 0
-    q.put(processed)
-    return result
+    ui_q.put(processed)
+    out_q.put((job_id, results))
+    return
 
 
 def thread_progress_bar(total, q):
-    with tqdm(range(total), desc='Tokenize') as bar:
+    with trange(total, desc='Tokenize') as bar:
         while True:
             msg = q.get()
             if msg is None:
@@ -89,7 +86,7 @@ def thread_progress_bar(total, q):
 
 
 def spacit(lines,
-           threads=1,
+           workers=1,
            delimiter='\t',
            field=None,
            lower=True,
@@ -105,23 +102,30 @@ def spacit(lines,
 
     assert form in ['norm', 'lemma', 'text']
 
-    with Pool(threads) as pool:
-        q = Manager().Queue()
-        ui = threading.Thread(target=thread_progress_bar, args=(len(lines), q))
-        ui.start()
-        chunks = divide(threads, lines)
-        lines = list(
-            chain.from_iterable(
-                pool.map(
-                    worker,
-                    zip(count(), chunks, repeat(q), repeat(delimiter),
-                        repeat(field), repeat(lower), repeat(alnum),
-                        repeat(eol), repeat(form), repeat(remove_stop),
-                        repeat(skeleton)))))
+    ui_q = Queue()
+    ui = threading.Thread(target=thread_progress_bar, args=(len(lines), ui_q))
+    ui.start()
 
-        q.put(None)
-        ui.join()
-    return lines
+    out_q = Queue()
+    procs = []
+    for job_id, batch in enumerate(divide(workers, lines)):
+        proc = Process(
+            target=worker,
+            args=(job_id, batch, delimiter, field, lower, alnum, eol, form,
+                  remove_stop, skeleton, out_q, ui_q))
+        proc.start()
+        procs.append(proc)
+    results = [None] * workers
+    for _ in range(workers):
+        job_id, lines = out_q.get()
+        results[job_id] = lines
+    results = list(flatten(results))
+    for proc in procs:
+        proc.join()
+    ui_q.put(None)
+    ui.join()
+
+    return results
 
 
 def parse_arguments():
@@ -129,14 +133,15 @@ def parse_arguments():
         return [int(x) for x in str(line).split(',')]
 
     parser = argparse.ArgumentParser(description='')
+    parser.add_argument('--input', type=argparse.FileType('r'))
     parser.add_argument(
         '-d', '--delimiter', default='\t', help='default to \\t')
     parser.add_argument(
         '-j',
-        '--threads',
+        '--workers',
         type=int,
         default=os.cpu_count() // 2,
-        help='number of threads, default to half of cpu count')
+        help='number of workers, default to half of cpu count')
     parser.add_argument(
         '-f',
         '--field',
@@ -160,7 +165,7 @@ def main():
     # from itertools import islice
     # with open('data/msmarco-pass.tsv', 'r') as f:
     #     test = list(islice(f, 100))
-    lines = spacit(sys.stdin, args.threads, args.delimiter, args.field,
+    lines = spacit(args.input, args.workers, args.delimiter, args.field,
                    not args.no_lower, not args.keep_nonalnum, '\n')
     sys.stdout.writelines(lines)
 
