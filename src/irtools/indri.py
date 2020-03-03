@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-from concurrent.futures import ProcessPoolExecutor as Pool
 from dask.distributed import Client
+from multiprocessing import Pool
 from more_itertools import unzip
 from itertools import repeat
 from pathlib import Path
 from lxml import etree
+from tqdm import tqdm
 import subprocess
 import argparse
 import tempfile
 import string
 import sys
+import os
 
 
 def eprint(*args, **kwargs):
@@ -97,7 +99,8 @@ class IndriRunQuery:
         output = ''.join(output)
         return output
 
-    def run_single(self, qno, query, working_set=[], extra=[]):
+    def run_single(self, packed_args):
+        qno, query, working_set, extra = packed_args
         if working_set:
             output = self.run_file(qno, query, working_set, extra)
         else:
@@ -105,12 +108,13 @@ class IndriRunQuery:
 
         return output
 
-    def run_batch(self, qnos, queries, working_set=[], extra=[]):
-        with Pool(40) as pool:
-            output = list(
-                pool.map(self.run_single, qnos, queries, repeat(working_set),
-                         repeat(extra)))
-        return output
+    def run_batch(self, qnos, queries, working_set, extra, workers):
+        with Pool(workers) as pool:
+            results = pool.imap(
+                self.run_single,
+                zip(qnos, queries, repeat(working_set), repeat(extra)))
+            results = list(tqdm(results, total=len(qnos)))
+        return results
 
     def run_distributed(self, qnos, queries, working_set=[], extra=[]):
         '''Set up a cluster first:
@@ -119,8 +123,9 @@ class IndriRunQuery:
         env PYTHONPATH=/research/remote/petabyte/users/binsheng/trec_tools/ dask-worker segsresap10:8786 --nprocs 50 --nthreads 1 --memory-limit 0 --name segsresap09
         '''
         client = Client(self._scheduler)
-        futures = client.map(self.run_single, qnos, queries,
-                             repeat(working_set), repeat(extra))
+        futures = client.map(
+            self.run_single,
+            zip(qnos, queries, repeat(working_set), repeat(extra)))
         output = [f.result() for f in futures]
         return output
 
@@ -138,14 +143,17 @@ def parse_arguments():
 
     parser.add_argument(
         '--sep',
-        required=True,
         choices=[',', 'space', 'none'],
+        default=',',
         help='Separator between qno and query')
 
-    parser.add_argument('--scheduler', required=True, help='Index')
+    parser.add_argument('--scheduler', help='Scheduler')
 
     parser.add_argument(
         '--count', default=1000, type=int, help='Document count')
+
+    parser.add_argument(
+        '--workers', default=os.cpu_count() // 2, type=int, help='Workers')
 
     parser.add_argument(
         '--output', default=sys.stdout, type=argparse.FileType('w'))
@@ -176,7 +184,12 @@ def main():
         output = indri.run_distributed(
             qnos, queries, extra=[['count', args.count]])
     else:
-        output = indri.run_batch(qnos, queries, extra=[['count', args.count]])
+        output = indri.run_batch(
+            qnos,
+            queries,
+            working_set=[],
+            extra=[['count', args.count]],
+            workers=args.workers)
 
     args.output.writelines(output)
 

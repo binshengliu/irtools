@@ -9,12 +9,12 @@ setup(
     package_dir={"": "src"},
     scripts=[
         "scripts/each_server.sh", "src/irtools/perplexity.py",
-        "src/irtools/mypyrouge.py"
+        "src/irtools/mypyrouge.py", "src/irtools/indri.py"
     ],
     packages=find_packages("src"),
     include_package_data=True,
     install_requires=[
         'unidecode', 'tqdm', 'scipy', 'numpy', 'more_itertools', 'pandas',
-        'ftfy'
+        'ftfy', 'lxml'
     ],
 )
