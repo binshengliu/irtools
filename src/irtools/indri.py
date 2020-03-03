@@ -47,7 +47,7 @@ class IndriRunQuery:
         return etree.tostring(root, pretty_print=True).decode('ascii')
 
     def run_file(self, qno, query, working_set, extra=[]):
-        string = self.format_xml(qno, query, working_set, extra)
+        string = self.format_xml('0', query, working_set, extra)
 
         fp = tempfile.NamedTemporaryFile(mode='w')
         fp.write(string)
@@ -66,6 +66,7 @@ class IndriRunQuery:
             if 'EXCEPTION' in line:
                 eprint('EXCEPTION: {} {} {}'.format(qno, query, line))
                 raise Exception('EXCEPTION: {} {} {}'.format(qno, query, line))
+            line = ' '.join([qno] + line.split(maxsplit=1)[1:])
             output.append(line)
 
         fp.close()
@@ -76,7 +77,7 @@ class IndriRunQuery:
     def run_cmd(self, qno, query, extra=[]):
         indri_args = [
             self._path, '-index=' + self._index, '-trecFormat=True',
-            '-queryOffset={}'.format(qno), '-query={}'.format(query)
+            '-queryOffset=0', '-query={}'.format(query)
         ]
 
         if extra:
@@ -94,6 +95,7 @@ class IndriRunQuery:
             if 'EXCEPTION' in line:
                 eprint('EXCEPTION: {} {} {}'.format(qno, query, line))
                 raise Exception('EXCEPTION: {} {} {}'.format(qno, query, line))
+            line = ' '.join([qno] + line.split(maxsplit=1)[1:])
             output.append(line)
 
         output = ''.join(output)
