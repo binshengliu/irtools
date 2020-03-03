@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 from concurrent.futures import ProcessPoolExecutor as Pool
-import subprocess
-import sys
 from dask.distributed import Client
 from more_itertools import unzip
-import argparse
+from itertools import repeat
 from pathlib import Path
 from lxml import etree
+import subprocess
+import argparse
 import tempfile
-import os
 import string
+import sys
 
 
 def eprint(*args, **kwargs):
@@ -53,11 +53,12 @@ class IndriRunQuery:
 
         indri_args = [self._path, fp.name]
 
-        proc = subprocess.Popen(indri_args,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL,
-                                encoding='ascii',
-                                errors='ignore')
+        proc = subprocess.Popen(
+            indri_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            encoding='ascii',
+            errors='ignore')
         output = []
         for line in proc.stdout:
             if 'EXCEPTION' in line:
@@ -80,11 +81,12 @@ class IndriRunQuery:
             extra = ['-{}={}'.format(*el) for el in extra]
             indri_args.extend(extra)
 
-        proc = subprocess.Popen(indri_args,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL,
-                                encoding='ascii',
-                                errors='ignore')
+        proc = subprocess.Popen(
+            indri_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            encoding='ascii',
+            errors='ignore')
         output = []
         for line in proc.stdout:
             if 'EXCEPTION' in line:
@@ -103,33 +105,22 @@ class IndriRunQuery:
 
         return output
 
-    def run_batch(self, qnos, queries, working_set=None, extra=None):
-        if not working_set:
-            working_set = [[]] * len(qnos)
-
-        if not extra:
-            extra = [[]] * len(qnos)
-
+    def run_batch(self, qnos, queries, working_set=[], extra=[]):
         with Pool(40) as pool:
             output = list(
-                pool.map(self.run_single, qnos, queries, working_set, extra))
+                pool.map(self.run_single, qnos, queries, repeat(working_set),
+                         repeat(extra)))
         return output
 
-    def run_distributed(self, qnos, queries, working_set=None, extra=None):
+    def run_distributed(self, qnos, queries, working_set=[], extra=[]):
         '''Set up a cluster first:
         dask-scheduler
         env PYTHONPATH=/research/remote/petabyte/users/binsheng/trec_tools/ dask-worker segsresap10:8786 --nprocs 50 --nthreads 1 --memory-limit 0 --name segsresap10
         env PYTHONPATH=/research/remote/petabyte/users/binsheng/trec_tools/ dask-worker segsresap10:8786 --nprocs 50 --nthreads 1 --memory-limit 0 --name segsresap09
         '''
-        if not working_set:
-            working_set = [[]] * len(qnos)
-
-        if not extra:
-            extra = [[]] * len(qnos)
-
         client = Client(self._scheduler)
-        futures = client.map(self.run_single, qnos, queries, working_set,
-                             extra)
+        futures = client.map(self.run_single, qnos, queries,
+                             repeat(working_set), repeat(extra))
         output = [f.result() for f in futures]
         return output
 
@@ -137,44 +128,34 @@ class IndriRunQuery:
 def parse_arguments():
     parser = argparse.ArgumentParser(description='')
 
-    parser.add_argument(
-        '--index',
-        required=True,
-        type=Path,
-        help='Index',
-    )
+    parser.add_argument('--index', required=True, type=Path, help='Index')
 
     parser.add_argument(
         '--query',
         required=True,
         help='Query: csv file, or \'-\' for stdin. Format: qno,query',
-    )
+        type=argparse.FileType('r'))
 
     parser.add_argument(
         '--sep',
         required=True,
         choices=[',', 'space', 'none'],
-        help='Separator between qno and query',
-    )
+        help='Separator between qno and query')
+
+    parser.add_argument('--scheduler', required=True, help='Index')
 
     parser.add_argument(
-        '--scheduler',
-        required=True,
-        help='Index',
-    )
+        '--count', default=1000, type=int, help='Document count')
+
+    parser.add_argument(
+        '--output', default=sys.stdout, type=argparse.FileType('w'))
 
     return parser.parse_args()
 
 
 def main():
     args = parse_arguments()
-    if os.path.exists(args.query):
-        content = Path(args.query).read_text().splitlines()
-    elif args.query == '-':
-        content = sys.stdin.read().splitlines()
-    else:
-        eprint('Incorrect query')
-        return
+    content = [x.strip() for x in args.query if x.strip()]
 
     if args.sep != 'none':
         sep = None if args.sep == 'space' else args.sep
@@ -191,13 +172,13 @@ def main():
 
     indri = IndriRunQuery(None, str(args.index.resolve()), args.scheduler)
 
-    output = indri.run_distributed(
-        qnos,
-        queries,
-        working_set=None,
-        extra=[[['count', 10], ['baseline', 'okapi,k1:0.9,b:0.4,k3:0']]] *
-        len(qnos))
-    sys.stdout.writelines(output)
+    if args.scheduler:
+        output = indri.run_distributed(
+            qnos, queries, extra=[['count', args.count]])
+    else:
+        output = indri.run_batch(qnos, queries, extra=[['count', args.count]])
+
+    args.output.writelines(output)
 
 
 if __name__ == '__main__':
