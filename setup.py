@@ -9,7 +9,8 @@ setup(
     package_dir={"": "src"},
     scripts=[
         "scripts/each_server.sh", "src/irtools/perplexity.py",
-        "src/irtools/mypyrouge.py", "src/irtools/indri.py"
+        "src/irtools/mypyrouge.py", "src/irtools/indri.py",
+        "scripts/trec_eval.py"
     ],
     packages=find_packages("src"),
     include_package_data=True,

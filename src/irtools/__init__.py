@@ -4,3 +4,7 @@ from .tqdmf import tqdmf
 from .perplexity import perplexity
 from .mypyrouge import rouge_pair
 from .readability import readability
+from .variant_utils import TrecRun
+from .rrf import FuseRrf
+from .trec_eval import TrecQrels
+from .rank_metrics import *
