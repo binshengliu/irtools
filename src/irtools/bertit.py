@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 
 def process_line(args):
-    tokenizer, line, delimiter, field, eol = args
+    line, tokenizer, delimiter, field, eol = args
 
     fields = line.rstrip('\n').split(delimiter)
 
