@@ -76,6 +76,13 @@ class TrecRunVno:
     def sorted_dnos(self):
         return self.content
 
+    def to_trec(self):
+        buffer = ''
+        for rank, dno in enumerate(self.content, 1):
+            score = self.scores[dno]
+            buffer += f'{self.vno} Q0 {dno} {rank} {score} indri\n'
+        return buffer
+
 
 def all_combinations(any_list):
     return chain.from_iterable(
@@ -262,6 +269,12 @@ class TrecRunQno:
     def __getitem__(self, key):
         return self.vno_map[key]
 
+    def to_trec(self):
+        buffer = ''
+        for x in self.vno_map.values():
+            buffer += x.to_trec()
+        return buffer
+
 
 def parse_line(line):
     fields = line.split()
@@ -433,6 +446,12 @@ class TrecRun:
             r = runqno.fuse_random(k=k, fuse_func=fuse_func)
             qno_map[runqno.qno] = r
         return TrecRun(qno_map)
+
+    def to_trec(self):
+        buffer = ''
+        for runqno in self.qno_map.values():
+            buffer += runqno.to_trec()
+        return buffer
 
 
 def fuse_optimal_sp(args):

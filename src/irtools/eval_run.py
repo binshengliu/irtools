@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import subprocess
+from tempfile import NamedTemporaryFile
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
@@ -79,7 +80,7 @@ def gdeval_all(qrel_path, run_path, show_cmd=True):
 
 def trec_eval(measure, qrel_path, run_path, show_cmd=True):
     trec_eval = str(Path(__file__).resolve().with_name('trec_eval'))
-    args = [trec_eval, '-q', '-m', measure, qrel_path, run_path]
+    args = [trec_eval, '-p', '-q', '-m', measure, qrel_path, run_path]
     if show_cmd:
         eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -329,15 +330,26 @@ functions = [
 ]
 
 
-def eval_run(measure, qrel_path, run_path, show_cmd=True):
+def eval_run(measure, qrel_path, run, show_cmd=True):
     """Supported measure: All names supported by trec_eval. \"gdeval\" and
     \"gdeval@k\" are also supported but are not official names.
     """
+    if isinstance(run, str):
+        f = NamedTemporaryFile(mode='wt', delete=False)
+        f.write(run)
+        f.close()
+        run_path = f.name
+    else:
+        run_path = run
+
     for entry in functions:
         if entry.match_function(measure, entry.match_str):
             aggregated, qno_results = entry.eval_func(measure, qrel_path,
                                                       run_path, show_cmd)
             return aggregated, qno_results
+
+    if isinstance(run, str):
+        os.unlink(f.name)
 
     raise ValueError('Unrecognizable measure {}'.format(measure))
 
@@ -349,12 +361,16 @@ def split_comma(s):
 def find_qrel(s):
     if Path(s).exists():
         return s
-    default = {'robust04': str(Path(__file__).resolve().with_name('robust04.qrels'))}
+    default = {
+        'robust04': str(Path(__file__).resolve().with_name('robust04.qrels'))
+    }
     path = default.get(s, None)
     if not path:
-        raise argparse.ArgumentTypeError('Unknown qrel path or identifier {}'.format(s))
+        raise argparse.ArgumentTypeError(
+            'Unknown qrel path or identifier {}'.format(s))
 
     return path
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -387,7 +403,8 @@ def parse_args():
         action='store_true',
         help='write per query evaluation into individual csv files')
 
-    parser.add_argument('qrel', metavar='QREL', help='Qrels path', type=find_qrel)
+    parser.add_argument(
+        'qrel', metavar='QREL', help='Qrels path', type=find_qrel)
 
     parser.add_argument('run', nargs='*', metavar='RUN', help='run files')
 
@@ -418,7 +435,8 @@ def main():
     overall_results = {}
     individual_result = {}
     for (filename, measure), result, individual in zip(
-            itertools.product(args.run, args.measure), eval_results, individuals):
+            itertools.product(args.run, args.measure), eval_results,
+            individuals):
         overall_results.setdefault(filename, [])
 
         for m, value in result.items():
@@ -448,6 +466,7 @@ def main():
         print(df.to_csv(index=False, float_format='%.3f'))
     else:
         assert False, 'Unsupported format {}'.format(args.format)
+
 
 if __name__ == '__main__':
     main()
