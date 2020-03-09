@@ -16,9 +16,8 @@ def process_line(args):
         s = fields[f]
         s = unidecode(ftfy.fix_text(s))
         if alnum:
-            s = [''.join(filter(str.isalnum, x)) for x in s]
-            s = [x for x in s if x]
-            s = ''.join(s)
+            s = [''.join(filter(str.isalnum, x)) for x in s.split()]
+            s = ' '.join(s)
         if lower:
             s = s.lower()
         fields[f] = ' '.join(s.split())
