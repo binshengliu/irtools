@@ -10,7 +10,7 @@ setup(
     scripts=[
         "scripts/each_server.sh", "src/irtools/perplexity.py",
         "src/irtools/mypyrouge.py", "src/irtools/indri.py",
-        "scripts/trec_eval.py", "scripts/wtl.py"
+        "scripts/trec_eval.py", "scripts/wtl.py", "scripts/cleanit.py"
     ],
     packages=find_packages("src"),
     include_package_data=True,
