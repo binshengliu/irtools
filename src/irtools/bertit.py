@@ -13,7 +13,7 @@ def process_line(args):
         field = range(len(fields))
     for f in field:
         s = fields[f]
-        s = tokenizer.encode(s)
+        s = tokenizer.encode(s, max_length=tokenizer.max_len)
         fields[f] = ' '.join([str(x) for x in s])
 
     result = delimiter.join(fields) + eol
