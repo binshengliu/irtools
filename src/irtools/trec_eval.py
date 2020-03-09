@@ -127,3 +127,6 @@ class TrecQrels:
         score = average_precision(rels)
 
         return score
+
+    def get(self, qno, dno, default=0):
+        return self.qrels.get(qno, {}).get(dno, default)
