@@ -6,16 +6,16 @@ from irtools.rank_metrics import ndcg_at_k, average_precision
 
 
 class TrecQrels:
-    def __init__(self, qrels_path, depth=None, method='reciprocal_rank'):
-        if isinstance(qrels_path, str):
+    def __init__(self, qrels, depth=None, method='reciprocal_rank'):
+        if isinstance(qrels, str):
             self.qrels = {}
-            with open(qrels_path, 'r') as f:
+            with open(qrels, 'r') as f:
                 for line in f:
                     qno, _, dno, rel = line.split()
                     self.qrels.setdefault(qno, {}).setdefault(dno, {})
                     self.qrels[qno][dno] = int(rel)
-        elif isinstance(qrels_path, dict):
-            self.qrels = qrels_path
+        elif isinstance(qrels, dict):
+            self.qrels = qrels
         else:
             assert False
         self.depth = depth
