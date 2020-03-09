@@ -1,29 +1,8 @@
 #!/usr/bin/env python3
-import os
 import sys
-
-from tqdm import tqdm
 import numpy as np
 
 from irtools.rank_metrics import ndcg_at_k, average_precision
-
-
-def eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
-
-
-def tqdmf(path, *args, **kwargs):
-    with tqdm(
-            total=os.stat(path).st_size,
-            unit='B',
-            unit_scale=True,
-            unit_divisor=1024,
-            *args,
-            **kwargs) as bar:
-        with open(path, 'r') as f:
-            for line in f:
-                bar.update(len(line))
-                yield line
 
 
 class TrecQrels:
