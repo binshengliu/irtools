@@ -8,7 +8,10 @@ from irtools.spacit import spacit
 
 def parse_arguments():
     def int_comma(line):
-        return [int(x) for x in str(line).split(',')]
+        parsed = [int(x) for x in str(line).split(',')]
+        if any(x <= 0 for x in parsed):
+            raise argparse.ArgumentTypeError("fields are numbered from 1")
+        return parsed
 
     parser = argparse.ArgumentParser(description='')
     parser.add_argument(
@@ -24,7 +27,7 @@ def parse_arguments():
         '-f',
         '--field',
         type=int_comma,
-        help='zero-based field index to process, e.g. 0,1,2,3.')
+        help='one-based field index to process, e.g. 1,2,3.')
     parser.add_argument(
         '--no-lower',
         action='store_true',
