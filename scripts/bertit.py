@@ -8,8 +8,8 @@ from irtools.bertit import bertit
 
 def parse_arguments():
     def int_comma(line):
-        parsed = [int(x) for x in str(line).split(',')]
-        if any(x <= 0 for x in parsed):
+        parsed = [int(x) - 1 for x in str(line).split(',')]
+        if any(x < 0 for x in parsed):
             raise argparse.ArgumentTypeError("fields are numbered from 1")
         return parsed
 
