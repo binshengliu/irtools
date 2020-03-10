@@ -6,14 +6,13 @@ setup(
     description='Utilities for IR research',
     author='Binsheng Liu',
     author_email='liubinsheng@gmail.com',
-    package_dir={"": "src"},
     scripts=[
-        "scripts/each_server.sh", "src/irtools/perplexity.py",
-        "src/irtools/mypyrouge.py", "src/irtools/indri.py",
-        "scripts/trec_eval.py", "scripts/wtl.py", "scripts/cleanit.py",
-        "scripts/bertit.py", "scripts/spacit.py"
+        "scripts/each_server.sh", "irtools/perplexity.py",
+        "irtools/mypyrouge.py", "irtools/indri.py", "scripts/trec_eval.py",
+        "scripts/wtl.py", "scripts/cleanit.py", "scripts/bertit.py",
+        "scripts/spacit.py"
     ],
-    packages=find_packages("src"),
+    packages=find_packages(exclude=['docs', 'tests', 'scripts']),
     include_package_data=True,
     install_requires=[
         'unidecode', 'tqdm', 'scipy', 'numpy', 'more_itertools', 'pandas',
