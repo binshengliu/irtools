@@ -15,7 +15,7 @@ setup(
     packages=find_packages(exclude=['docs', 'tests', 'scripts']),
     include_package_data=True,
     install_requires=[
-        'unidecode', 'tqdm', 'scipy', 'numpy', 'more_itertools', 'pandas',
+        'unidecode', 'tqdm', 'scipy', 'numpy', 'more-itertools', 'pandas',
         'ftfy', 'lxml', 'GPUtil'
     ],
 )
