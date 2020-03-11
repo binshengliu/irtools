@@ -28,12 +28,21 @@ def parse_arguments():
         type=int_comma,
         help='one-based field index to process, e.g. 1,2,3.')
 
+    parser.add_argument(
+        '--add-special-tokens', action='store_true', help='Add <cls> ...')
+
+    parser.add_argument('--max-length', type=int, help='Max length')
+
+    parser.add_argument(
+        '--pad-to-max-length', action='store_true', help='Pad to max length')
     return parser.parse_args()
 
 
 def main():
     args = parse_arguments()
-    lines = bertit(sys.stdin, args.threads, args.delimiter, args.field, '\n')
+    lines = bertit(sys.stdin, args.threads, args.delimiter, args.field, '\n',
+                   args.add_special_tokens, args.max_length,
+                   args.pad_to_max_length)
     sys.stdout.writelines(lines)
 
 
