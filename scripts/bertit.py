@@ -8,6 +8,20 @@ import pickle
 from irtools.bertit import bertit
 
 
+def output_type(string):
+    mode = 'w'
+    if string.endswith('.pkl') or string.endswith('.pickle'):
+        mode = 'wb'
+    return argparse.FileType(mode)(string)
+
+
+def write_output(lines, out):
+    if 'b' in out.mode:
+        pickle.dump(lines, out)
+    else:
+        out.writelines(lines)
+
+
 def parse_arguments():
     def int_comma(line):
         parsed = [int(x) - 1 for x in str(line).split(',')]
@@ -34,7 +48,7 @@ def parse_arguments():
         '-o',
         '--output',
         required=True,
-        type=argparse.FileType('wb'),
+        type=output_type,
         help='Output in pickle format')
 
     parser.add_argument(
@@ -49,11 +63,12 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
+    text_mode = 'b' not in args.output.mode
     lines = bertit(sys.stdin, args.threads, args.delimiter, args.field, '\n',
-                   False, args.add_special_tokens, args.max_length,
+                   text_mode, args.add_special_tokens, args.max_length,
                    args.pad_to_max_length)
 
-    pickle.dump(lines, args.output)
+    write_output(lines, args.output)
 
 
 if __name__ == '__main__':
