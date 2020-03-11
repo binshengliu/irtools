@@ -3,6 +3,8 @@ import argparse
 import sys
 import os
 
+import pickle
+
 from irtools.bertit import bertit
 
 
@@ -29,6 +31,13 @@ def parse_arguments():
         help='one-based field index to process, e.g. 1,2,3.')
 
     parser.add_argument(
+        '-o',
+        '--output',
+        required=True,
+        type=argparse.FileType('wb'),
+        help='Output in pickle format')
+
+    parser.add_argument(
         '--add-special-tokens', action='store_true', help='Add <cls> ...')
 
     parser.add_argument('--max-length', type=int, help='Max length')
@@ -41,9 +50,10 @@ def parse_arguments():
 def main():
     args = parse_arguments()
     lines = bertit(sys.stdin, args.threads, args.delimiter, args.field, '\n',
-                   args.add_special_tokens, args.max_length,
+                   False, args.add_special_tokens, args.max_length,
                    args.pad_to_max_length)
-    sys.stdout.writelines(lines)
+
+    pickle.dump(lines, args.output)
 
 
 if __name__ == '__main__':

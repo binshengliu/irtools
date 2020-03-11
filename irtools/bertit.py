@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 
 def process_line(args):
-    line, tokenizer, delimiter, field, eol, \
+    line, tokenizer, delimiter, field, eol, text, \
         add_special_tokens, max_length, pad_to_max_length = args
 
     fields = line.rstrip('\n').split(delimiter)
@@ -19,9 +19,15 @@ def process_line(args):
             max_length=max_length,
             add_special_tokens=add_special_tokens,
             pad_to_max_length=pad_to_max_length)
-        fields[f] = ' '.join([str(x) for x in s])
+        if text:
+            fields[f] = ' '.join([str(x) for x in s])
+        else:
+            fields[f] = s
 
-    result = delimiter.join(fields) + eol
+    if text:
+        result = delimiter.join(fields) + eol
+    else:
+        result = fields
     return result
 
 
@@ -30,6 +36,7 @@ def bertit(lines,
            delimiter='\t',
            field=None,
            eol='\n',
+           text=False,
            add_special_tokens=True,
            max_length=None,
            pad_to_max_length=False):
@@ -42,8 +49,8 @@ def bertit(lines,
         lines = pool.imap(
             process_line,
             zip(lines, repeat(tokenizer), repeat(delimiter), repeat(field),
-                repeat(eol), repeat(add_special_tokens), repeat(max_length),
-                repeat(pad_to_max_length)),
+                repeat(eol), repeat(text), repeat(add_special_tokens),
+                repeat(max_length), repeat(pad_to_max_length)),
             chunksize=2048)
         lines = list(tqdm(lines, total=total))
 
