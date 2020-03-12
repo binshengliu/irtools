@@ -3,6 +3,26 @@ import sys
 
 import argparse
 import pickle
+import msgpack
+import numpy as np
+
+
+def serialize(data, fp):
+    if fp.name.endswith('npy'):
+        np.save(fp, np.asarray(data))
+    elif fp.name.endswith('pkl'):
+        pickle.dump(data, fp)
+    elif fp.name.endswith('msgpack'):
+        msgpack.pack(data, fp)
+    else:
+        np.save(fp, np.asarray(data))
+
+
+def output_type(string):
+    splits = string.rsplit('.', maxsplit=1)
+    if len(splits) == 1 or splits[1] not in ['npy', 'pkl', 'msgpack']:
+        raise argparse.ArgumentTypeError("Unsupported format")
+    return argparse.FileType('wb')(string)
 
 
 def parse_arguments():
@@ -32,8 +52,8 @@ def parse_arguments():
         '-o',
         '--output',
         required=True,
-        type=argparse.FileType('wb'),
-        help='Output in pickle format')
+        type=output_type,
+        help='Supported extensions: .npy .pkl .msgpack')
 
     return parser.parse_args()
 
@@ -42,7 +62,7 @@ def main():
     args = parse_arguments()
     output = [[int(x) for x in line.split()] for line in args.input]
 
-    pickle.dump(output, args.output)
+    serialize(output, args.output)
 
 
 if __name__ == '__main__':
