@@ -3,23 +3,7 @@ import argparse
 import sys
 import os
 
-import pickle
-
 from irtools.bertit import bertit
-
-
-def output_type(string):
-    mode = 'w'
-    if string.endswith('.pkl') or string.endswith('.pickle'):
-        mode = 'wb'
-    return argparse.FileType(mode)(string)
-
-
-def write_output(lines, out):
-    if 'b' in out.mode:
-        pickle.dump(lines, out)
-    else:
-        out.writelines(lines)
 
 
 def parse_arguments():
@@ -45,11 +29,10 @@ def parse_arguments():
         help='one-based field index to process, e.g. 1,2,3.')
 
     parser.add_argument(
-        '-o',
-        '--output',
-        required=True,
-        type=output_type,
-        help='Output in pickle format')
+        '-i', '--input', type=argparse.FileType('r'), default=sys.stdin)
+
+    parser.add_argument(
+        '-o', '--output', type=argparse.FileType('w'), default=sys.stdout)
 
     parser.add_argument(
         '--add-special-tokens', action='store_true', help='Add <cls> ...')
@@ -63,12 +46,11 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
-    text_mode = 'b' not in args.output.mode
-    lines = bertit(sys.stdin, args.threads, args.delimiter, args.field, '\n',
-                   text_mode, args.add_special_tokens, args.max_length,
+    lines = bertit(args.input, args.threads, args.delimiter, args.field, '\n',
+                   True, args.add_special_tokens, args.max_length,
                    args.pad_to_max_length)
 
-    write_output(lines, args.output)
+    args.output.writelines(lines)
 
 
 if __name__ == '__main__':

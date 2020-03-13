@@ -6,6 +6,8 @@ import pickle
 import msgpack
 import numpy as np
 
+from irtools.jagged import pad_jagged
+
 
 def serialize(data, fp):
     if fp.name.endswith('npy'):
@@ -20,7 +22,7 @@ def serialize(data, fp):
 
 def output_type(string):
     splits = string.rsplit('.', maxsplit=1)
-    if len(splits) == 1 or splits[1] not in ['npy', 'pkl', 'msgpack']:
+    if len(splits) == 1 or splits[1] not in ['npy']:
         raise argparse.ArgumentTypeError("Unsupported format")
     return argparse.FileType('wb')(string)
 
@@ -34,35 +36,30 @@ def parse_arguments():
 
     parser = argparse.ArgumentParser(description='')
 
-    parser.add_argument(
-        '--dtype',
-        choices=['int', 'float'],
-        default='int',
-        help='One-based field index, e.g. 1,2,3. Other fields will be dropped.'
-    )
+    parser.add_argument('--dtype', choices=['int', 'float'], default='int')
+
+    parser.add_argument('--pad-value', default=0)
 
     parser.add_argument(
-        '-i',
-        '--input',
-        type=argparse.FileType('r'),
-        default=sys.stdin,
-        help='Output in pickle format')
+        '-i', '--input', type=argparse.FileType('r'), default=sys.stdin)
 
     parser.add_argument(
-        '-o',
-        '--output',
-        required=True,
-        type=output_type,
-        help='Supported extensions: .npy .pkl .msgpack')
+        '-o', '--output', required=True, type=argparse.FileType('wb'))
 
     return parser.parse_args()
 
 
 def main():
     args = parse_arguments()
-    output = [[int(x) for x in line.split()] for line in args.input]
+    output = []
+    max_len = 0
+    for line in args.input:
+        arr = [int(x) for x in line.strip().split()]
+        max_len = max(max_len, len(arr))
+        output.append(arr)
 
-    serialize(output, args.output)
+    output = pad_jagged(output, args.pad_value, max_len, args.dtype)
+    np.save(args.output, output)
 
 
 if __name__ == '__main__':
