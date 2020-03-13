@@ -38,7 +38,7 @@ def parse_arguments():
 
     parser.add_argument('--dtype', choices=['int', 'float'], default='int')
 
-    parser.add_argument('--pad-value', default=0)
+    parser.add_argument('--pad')
 
     parser.add_argument(
         '-i', '--input', type=argparse.FileType('r'), default=sys.stdin)
@@ -58,8 +58,10 @@ def main():
         max_len = max(max_len, len(arr))
         output.append(arr)
 
-    output = pad_jagged(output, args.pad_value, max_len, args.dtype)
-    np.save(args.output, output)
+    if args.pad is not None:
+        output = pad_jagged(output, args.pad, max_len, args.dtype)
+
+    np.save(args.output, np.asarray(output))
 
 
 if __name__ == '__main__':
