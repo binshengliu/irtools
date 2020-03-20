@@ -23,8 +23,7 @@ def gdeval_version():
 
 
 def trec_eval_version():
-    trec_eval = str(Path(__file__).resolve().with_name('trec_eval'))
-    args = [trec_eval, '--version']
+    args = [trec_eval_path(), '--version']
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     eprint(proc.stderr.decode('utf-8').strip())
 
@@ -35,8 +34,7 @@ def eval_run_version():
 
 
 def gdeval(k, qrel_path, run_path, show_cmd=True):
-    gdeval = str(Path(__file__).resolve().with_name('gdeval.pl'))
-    args = [gdeval, '-k', str(k), qrel_path, run_path]
+    args = [gdeval_path(), '-k', str(k), qrel_path, run_path]
     if show_cmd:
         eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -78,9 +76,38 @@ def gdeval_all(qrel_path, run_path, show_cmd=True):
     return aggregated, qno_results
 
 
+def gdeval_path():
+    return str(Path(__file__).resolve().with_name('gdeval.pl'))
+
+
+def trec_eval_path():
+    return str(Path(__file__).resolve().with_name('trec_eval'))
+
+
+def rbp_eval_path():
+    return str(Path(__file__).resolve().with_name('rbp_eval'))
+
+
+def trec_support():
+    cmd = f'{trec_eval_path()} -h -m all_trec'
+    proc = subprocess.run(
+        cmd,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True)
+    lines = proc.stdout.splitlines()
+    start = None
+    for i in enumerate(len(lines)):
+        if lines[i].startswith('Individual measure documentation'):
+            start = i + 1
+            break
+    measures = [l for l in lines[:start] if not l.startswith(' ')]
+    return measures
+
+
 def trec_eval(measure, qrel_path, run_path, show_cmd=True):
-    trec_eval = str(Path(__file__).resolve().with_name('trec_eval'))
-    args = [trec_eval, '-p', '-q', '-m', measure, qrel_path, run_path]
+    args = [trec_eval_path(), '-p', '-q', '-m', measure, qrel_path, run_path]
     if show_cmd:
         eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -100,8 +127,7 @@ def trec_eval(measure, qrel_path, run_path, show_cmd=True):
 
 
 def rbp_eval(p, qrel_path, run_path, show_cmd=True):
-    rbp_eval = str(Path(__file__).resolve().with_name('rbp_eval'))
-    args = [rbp_eval, '-H', '-q', '-p', p, qrel_path, run_path]
+    args = [rbp_eval_path(), '-H', '-q', '-p', p, qrel_path, run_path]
     if show_cmd:
         eprint(' '.join(args))
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
