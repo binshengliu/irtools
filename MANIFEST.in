@@ -1,4 +1,4 @@
 include README.md
-include src/irtools/*_eval
-include src/irtools/*.sh
-include src/irtools/*.pl
+include irtools/*_eval
+include irtools/*.sh
+include irtools/*.pl

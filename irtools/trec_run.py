@@ -275,6 +275,9 @@ class TrecRunQno:
             buffer += x.to_trec()
         return buffer
 
+    def __iter__(self):
+        return iter(self.vno_map.values())
+
 
 def parse_line(line):
     fields = line.split()
@@ -305,21 +308,26 @@ class TrecRun:
         self.qno_map = qno_map
 
     @staticmethod
-    def from_buffer(buffer):
+    def from_buffer(buffer, progress=False):
         qno_map = {}
-        for line in tqdm(buffer, desc='Parse'):
+        if progress:
+            buffer = tqdm(buffer, desc='Parse')
+        for line in buffer:
             record = parse_line(line)
             qno_map.setdefault(record[0], []).append(record)
-        qno_map = {
-            k: TrecRunQno.from_records(qno_map[k])
-            for k in tqdm(qno_map, desc='Build')
-        }
+        if progress:
+            qno_map = tqdm(qno_map, desc='Build')
+        qno_map = {k: TrecRunQno.from_records(qno_map[k]) for k in qno_map}
         return TrecRun(qno_map)
 
     @staticmethod
-    def from_file(path):
-        buffer = list(tqdmf(path, desc='Load ' + path.rsplit('/')[-1]))
-        return TrecRun.from_buffer(buffer)
+    def from_file(path, progress=False):
+        if progress:
+            buffer = list(tqdmf(path, desc='Load ' + path.rsplit('/')[-1]))
+        else:
+            with open(path, 'r') as f:
+                buffer = list(f)
+        return TrecRun.from_buffer(buffer, progress)
 
     def ntopics(self):
         return len(self.qno_map)
@@ -452,6 +460,9 @@ class TrecRun:
         for runqno in self.qno_map.values():
             buffer += runqno.to_trec()
         return buffer
+
+    def __iter__(self):
+        return iter(self.qno_map.values())
 
 
 def fuse_optimal_sp(args):
