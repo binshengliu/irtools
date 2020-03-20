@@ -4,13 +4,8 @@ import subprocess
 from multiprocessing import Pool
 from tempfile import NamedTemporaryFile
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
-import argparse
-import itertools
 from itertools import repeat
-from more_itertools import flatten
-import pandas as pd
 from irtools.trec_run import TrecRun
 from irtools.merge_dict import merge_dict_of_dict
 from tqdm import tqdm
