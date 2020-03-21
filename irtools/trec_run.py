@@ -315,18 +315,16 @@ class TrecRun:
         for line in buffer:
             record = parse_line(line)
             qno_map.setdefault(record[0], []).append(record)
+        kvs = list(qno_map.items())
         if progress:
-            qno_map = tqdm(qno_map, desc='Build')
-        qno_map = {k: TrecRunQno.from_records(qno_map[k]) for k in qno_map}
+            kvs = tqdm(kvs, desc='Build')
+        qno_map = {k: TrecRunQno.from_records(v) for k, v in kvs}
         return TrecRun(qno_map)
 
     @staticmethod
     def from_file(path, progress=False):
-        if progress:
-            buffer = list(tqdmf(path, desc='Load ' + path.rsplit('/')[-1]))
-        else:
-            with open(path, 'r') as f:
-                buffer = list(f)
+        with open(path, 'r') as f:
+            buffer = f.readlines()
         return TrecRun.from_buffer(buffer, progress)
 
     def ntopics(self):
