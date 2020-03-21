@@ -84,10 +84,26 @@ def gdeval(measure, qrel_path, run_path):
     return qno_results
 
 
-def trec_eval(measure, qrel_path, run_path):
-    args = [trec_eval_path(), '-p', '-q', '-m', measure, qrel_path, run_path]
-    proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    lines = proc.stdout.decode('utf-8').splitlines()
+def trec_eval(measure, qrel_path, run_path, run_buffer):
+    assert run_path is None or run_buffer is None
+    assert run_path is not None or run_buffer is not None
+
+    if run_path is not None:
+        args = [
+            trec_eval_path(), '-p', '-q', '-m', measure, qrel_path, run_path
+        ]
+        proc = subprocess.run(
+            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    else:
+        args = [trec_eval_path(), '-p', '-q', '-m', measure, qrel_path, '-']
+        proc = subprocess.run(
+            args,
+            input=run_buffer,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True)
+
+    lines = proc.stdout.splitlines()
 
     results = {}
     for line in lines:
@@ -144,27 +160,33 @@ def eval_mp(eval_wrapper,
     assert run_path is not None or run_buffer is not None
 
     if run_path is not None:
-        trec_run = TrecRun.from_file(run_path, False)
+        trec_run = TrecRun.from_file(run_path, progress)
     else:
-        trec_run = TrecRun.from_buffer(run_path, False)
+        trec_run = TrecRun.from_buffer(run_buffer, progress)
 
     buffers = [x.to_trec() for x in trec_run]
-    tmps = []
-    for b in buffers:
-        f = NamedTemporaryFile(mode='wt', delete=False)
-        f.write(b)
-        f.close()
-        tmps.append(f.name)
+    tmps = [None] * len(buffers)
+    if eval_wrapper.__name__.startswith('trec'):
+        tmps = [None] * len(buffers)
+    else:
+        for b in buffers:
+            f = NamedTemporaryFile(mode='wt', delete=False)
+            f.write(b)
+            f.close()
+            tmps.append(f.name)
 
     with Pool() as pool:
-        results = pool.imap(eval_wrapper,
-                            zip(repeat(measure), repeat(qrel_path), tmps))
+        results = pool.imap(
+            eval_wrapper,
+            zip(repeat(measure), repeat(qrel_path), tmps, buffers),
+            chunksize=24)
         if progress:
-            results = tqdm(results)
+            results = tqdm(results, total=len(buffers), desc='Eval')
         results = list(results)
 
     for t in tmps:
-        os.unlink(t)
+        if t is not None:
+            os.unlink(t)
 
     results = merge_dict_of_dict(results)
     agg = {m: np.mean(list(vs.values())) for m, vs in results.items()}

@@ -60,6 +60,8 @@ def parse_args():
 
     parser.add_argument('-v', '--version')
 
+    parser.add_argument('--progress', action='store_true')
+
     parser.add_argument(
         'qrel', metavar='QREL', help='Qrels path', type=find_qrel)
 
@@ -83,7 +85,7 @@ def main():
     measures = []
     eval_args = []
     for filename, measure in itertools.product(args.run, args.measure):
-        eval_args.append((measure, args.qrel, filename, None, False))
+        eval_args.append((measure, args.qrel, filename, None, args.progress))
 
     # processes = min(len(os.sched_getaffinity(0)) - 1, len(eval_args))
     eval_results = list(map(eval_run, *zip(*eval_args)))
