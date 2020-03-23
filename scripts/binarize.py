@@ -59,6 +59,8 @@ def main():
         max_len = max(max_len, len(arr))
         output.append(arr)
 
+    if not output:
+        return
     output = pad_jagged(output, args.pad_value, args.max_len, args.dtype)
     np.save(args.output, output)
 
