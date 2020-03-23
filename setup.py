@@ -11,7 +11,7 @@ setup(
         "irtools/mypyrouge.py", "irtools/indri.py", "scripts/trec_eval.py",
         "scripts/wtl.py", "scripts/cleanit.py", "scripts/bertit.py",
         "scripts/spacit.py", "scripts/binarize.py", "scripts/sample.py",
-        "scripts/eval_run.py"
+        "scripts/eval_run.py", "scripts/trec2ans.py", "scripts/ans2trec.py"
     ],
     packages=find_packages(exclude=['docs', 'tests', 'scripts']),
     include_package_data=True,
