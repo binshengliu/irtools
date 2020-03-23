@@ -6,7 +6,7 @@ import pickle
 import msgpack
 import numpy as np
 
-from irtools.jagged import pad_jagged
+from irtools.eprint import eprint
 
 
 def serialize(data, fp):
@@ -38,9 +38,6 @@ def parse_arguments():
 
     parser.add_argument('--dtype', choices=['int', 'float'], default='int')
 
-    parser.add_argument('--pad-value', default=0, type=int)
-    parser.add_argument('--max-len', default=512, type=int)
-
     parser.add_argument(
         '-i', '--input', type=argparse.FileType('r'), default=sys.stdin)
 
@@ -50,18 +47,36 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def unpack(array):
+    if array.ndim == 2:
+        return len(array), [array.shape[1]] * len(array), array
+
+    total = array[0]
+    lens = array[1:][:total]
+    data = array[total + 1:]
+
+    splits = np.cumsum(lens)[:-1]
+    payload = np.split(data, splits)
+    return total, lens, payload
+
+
 def main():
     args = parse_arguments()
-    output = []
-    max_len = 0
+    data = []
+    lens = []
     for line in args.input:
         arr = [int(x) for x in line.strip().split()]
-        max_len = max(max_len, len(arr))
-        output.append(arr)
+        data.extend(arr)
+        lens.append(len(arr))
 
-    if not output:
-        return
-    output = pad_jagged(output, args.pad_value, args.max_len, args.dtype)
+    if len(np.unique(lens)) == 1:
+        output = np.array(data).reshape(-1, lens[0])
+        eprint('Format: 2D')
+    else:
+        total = len(lens)
+        output = np.array([total] + lens + data)
+        eprint('Format: 1D jagged array '
+               '[total, len1, len2, ..., data with len1, data with len2, ...]')
     np.save(args.output, output)
 
 
