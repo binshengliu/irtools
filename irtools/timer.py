@@ -17,4 +17,4 @@ class Timer(object):
         self.secs = self.end - self.start
         self.msecs = self.secs * 1000  # millisecs
         if self.end_str is not None:
-            print(f'{self.end_str}. time: {self.secs}s')
+            print(f'{self.end_str}. time: {self.secs:.1f}s')
