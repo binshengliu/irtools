@@ -3,7 +3,13 @@ import argparse
 import sys
 import os
 
-from irtools.tokit import tokit
+from irtools.tokit import tokit, get_all_models
+
+
+def check_valid_model(model):
+    if model not in get_all_models():
+        raise argparse.ArgumentTypeError(f"Unknown model {model}")
+    return model
 
 
 def parse_arguments():
@@ -21,35 +27,58 @@ def parse_arguments():
         '--threads',
         type=int,
         default=os.cpu_count() // 2,
-        help='number of threads, default to half of cpu count')
+        help=f'default to half of cpu count {os.cpu_count() // 2}')
     parser.add_argument(
         '-f',
         '--field',
         type=int_comma,
-        help='one-based field index to process, e.g. 1,2,3.')
+        help='one-based field index to process like `cut -f`, e.g. 1,2,3.')
+
+    group = parser.add_mutually_exclusive_group(required=True)
+
+    group.add_argument(
+        '-m',
+        '--model',
+        type=check_valid_model,
+        help='model name like bert-base-uncased. '
+        'specify --list-models for all supported models.')
+
+    group.add_argument(
+        '-l',
+        '--list-models',
+        action='store_true',
+        help='list all supported models, e.g. bert-base-uncased')
 
     parser.add_argument(
-        '-m', '--mode', required=True, choices=tokit.get_all_modes())
+        '-i',
+        '--input',
+        type=argparse.FileType('r'),
+        default=sys.stdin,
+        help='default stdin')
 
     parser.add_argument(
-        '-i', '--input', type=argparse.FileType('r'), default=sys.stdin)
+        '-o',
+        '--output',
+        type=argparse.FileType('w'),
+        default=sys.stdout,
+        help='default stdout')
 
     parser.add_argument(
-        '-o', '--output', type=argparse.FileType('w'), default=sys.stdout)
+        '--add-special-tokens', action='store_true', help='default false')
+
+    parser.add_argument('--max-length', type=int, help='default no limit')
 
     parser.add_argument(
-        '--add-special-tokens', action='store_true', help='Add <cls> ...')
-
-    parser.add_argument('--max-length', type=int, help='Max length')
-
-    parser.add_argument(
-        '--pad-to-max-length', action='store_true', help='Pad to max length')
+        '--pad-to-max-length', action='store_true', help='default false')
     return parser.parse_args()
 
 
 def main():
     args = parse_arguments()
-    lines = tokit(args.mode, args.input, args.threads, args.delimiter,
+    if args.list_models:
+        args.output.writelines([x + '\n' for x in get_all_models()])
+        return
+    lines = tokit(args.model, args.input, args.threads, args.delimiter,
                   args.field, '\n', True, args.add_special_tokens,
                   args.max_length, args.pad_to_max_length)
 

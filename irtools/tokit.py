@@ -31,16 +31,11 @@ def process_line(args):
     return result
 
 
-def get_all_modes():
+def get_all_models():
     return list(ALL_PRETRAINED_CONFIG_ARCHIVE_MAP.keys())
 
 
-def get_all_models():
-    return list(
-        set(x.split('-')[0] for x in ALL_PRETRAINED_CONFIG_ARCHIVE_MAP.keys()))
-
-
-def tokit(mode,
+def tokit(model,
           lines,
           threads=1,
           delimiter='\t',
@@ -50,7 +45,7 @@ def tokit(mode,
           add_special_tokens=True,
           max_length=None,
           pad_to_max_length=False):
-    tokenizer = AutoTokenizer.from_pretrained(mode)
+    tokenizer = AutoTokenizer.from_pretrained(model)
     if not hasattr(lines, '__len__'):
         lines = list(lines)
     total = len(lines)
