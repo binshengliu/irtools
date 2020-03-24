@@ -2,12 +2,13 @@ import timeit
 
 
 class Timer(object):
-    def __init__(self, desc=None):
-        self.desc = desc
+    def __init__(self, end_str=None, start_str=None):
+        self.start_str = start_str
+        self.end_str = start_str
 
     def __enter__(self):
-        if self.desc is not None:
-            print(f'# start {self.desc}.')
+        if self.start_str is not None:
+            print(self.start_str)
         self.start = timeit.default_timer()
         return self
 
@@ -15,5 +16,5 @@ class Timer(object):
         self.end = timeit.default_timer()
         self.secs = self.end - self.start
         self.msecs = self.secs * 1000  # millisecs
-        if self.desc is not None:
-            print(f'# end {self.desc}. time: {self.secs}s')
+        if self.end_str is not None:
+            print(f'{self.end_str}. time: {self.secs}s')
