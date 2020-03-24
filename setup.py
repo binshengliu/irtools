@@ -9,7 +9,7 @@ setup(
     scripts=[
         "scripts/each_server.sh", "irtools/perplexity.py",
         "irtools/mypyrouge.py", "irtools/indri.py", "scripts/trec_eval.py",
-        "scripts/wtl.py", "scripts/cleanit.py", "scripts/bertit.py",
+        "scripts/wtl.py", "scripts/cleanit.py", "scripts/tokit.py",
         "scripts/spacit.py", "scripts/binarize.py", "scripts/sample.py",
         "scripts/eval_run.py", "scripts/trec2ans.py", "scripts/ans2trec.py"
     ],
