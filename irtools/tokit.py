@@ -40,16 +40,16 @@ def get_all_models():
         set(x.split('-')[0] for x in ALL_PRETRAINED_CONFIG_ARCHIVE_MAP.keys()))
 
 
-def toktit(mode,
-           lines,
-           threads=1,
-           delimiter='\t',
-           field=None,
-           eol='\n',
-           text=False,
-           add_special_tokens=True,
-           max_length=None,
-           pad_to_max_length=False):
+def tokit(mode,
+          lines,
+          threads=1,
+          delimiter='\t',
+          field=None,
+          eol='\n',
+          text=False,
+          add_special_tokens=True,
+          max_length=None,
+          pad_to_max_length=False):
     tokenizer = AutoTokenizer.from_pretrained(mode)
     if not hasattr(lines, '__len__'):
         lines = list(lines)
