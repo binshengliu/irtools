@@ -2,12 +2,12 @@ import timeit
 
 
 class Timer(object):
-    def __init__(self, verbose=False):
-        self.verbose = verbose
+    def __init__(self, desc=None):
+        self.desc = desc
 
     def __enter__(self):
-        if self.verbose:
-            print('start')
+        if self.desc is not None:
+            print(f'# start {self.desc}.')
         self.start = timeit.default_timer()
         return self
 
@@ -15,5 +15,5 @@ class Timer(object):
         self.end = timeit.default_timer()
         self.secs = self.end - self.start
         self.msecs = self.secs * 1000  # millisecs
-        if self.verbose:
-            print(f'elapsed time: {self.secs}s')
+        if self.desc is not None:
+            print(f'# end {self.desc}. time: {self.secs}s')
