@@ -69,6 +69,9 @@ def main():
         data.extend(arr)
         lens.append(len(arr))
 
+    if not data:
+        return
+
     if len(np.unique(lens)) == 1:
         output = np.array(data).reshape(-1, lens[0])
         eprint('Format: 2D')
