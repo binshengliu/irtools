@@ -51,18 +51,18 @@ def main():
 
     for id, value in tqdm(id_map.items(), total=len(id_map), desc='pair2list'):
         pos = value['pos']
-        neg = value['neg']
+        neg = list(value['neg'])
         if sample is not None:
             if sample < 1:
                 neg = np.random.choice(neg, round(len(neg) * sample))
             else:
-                neg = np.random.choice(neg, round(sample))
+                neg = np.random.choice(neg, min(len(neg), round(sample)))
 
         for one in pos:
-            args.output.write(delim.join([id, one, pos_label]))
+            args.output.write(delim.join([id, one, pos_label]) + '\n')
 
         for one in neg:
-            args.output.write(delim.join([id, one, neg_label]))
+            args.output.write(delim.join([id, one, neg_label]) + '\n')
 
 
 if __name__ == '__main__':
