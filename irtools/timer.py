@@ -4,7 +4,7 @@ import timeit
 class Timer(object):
     def __init__(self, end_str=None, start_str=None):
         self.start_str = start_str
-        self.end_str = start_str
+        self.end_str = end_str
 
     def __enter__(self):
         if self.start_str is not None:
