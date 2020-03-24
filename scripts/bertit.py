@@ -3,7 +3,7 @@ import argparse
 import sys
 import os
 
-from irtools.bertit import bertit
+from irtools.tokit import tokit
 
 
 def parse_arguments():
@@ -29,6 +29,9 @@ def parse_arguments():
         help='one-based field index to process, e.g. 1,2,3.')
 
     parser.add_argument(
+        '-m', '--mode', required=True, choices=tokit.get_all_modes())
+
+    parser.add_argument(
         '-i', '--input', type=argparse.FileType('r'), default=sys.stdin)
 
     parser.add_argument(
@@ -46,9 +49,9 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
-    lines = bertit(args.input, args.threads, args.delimiter, args.field, '\n',
-                   True, args.add_special_tokens, args.max_length,
-                   args.pad_to_max_length)
+    lines = tokit(args.mode, args.input, args.threads, args.delimiter,
+                  args.field, '\n', True, args.add_special_tokens,
+                  args.max_length, args.pad_to_max_length)
 
     args.output.writelines(lines)
 

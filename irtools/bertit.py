@@ -1,4 +1,4 @@
-from transformers import BertTokenizer
+from transformers import AutoTokenizer, ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
 from multiprocessing import Pool
 from itertools import repeat
 from tqdm import tqdm
@@ -31,7 +31,17 @@ def process_line(args):
     return result
 
 
-def bertit(lines,
+def get_all_modes():
+    return list(ALL_PRETRAINED_CONFIG_ARCHIVE_MAP.keys())
+
+
+def get_all_models():
+    return list(
+        set(x.split('-')[0] for x in ALL_PRETRAINED_CONFIG_ARCHIVE_MAP.keys()))
+
+
+def toktit(mode,
+           lines,
            threads=1,
            delimiter='\t',
            field=None,
@@ -40,7 +50,7 @@ def bertit(lines,
            add_special_tokens=True,
            max_length=None,
            pad_to_max_length=False):
-    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+    tokenizer = AutoTokenizer.from_pretrained(mode)
     if not hasattr(lines, '__len__'):
         lines = list(lines)
     total = len(lines)
