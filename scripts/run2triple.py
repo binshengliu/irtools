@@ -30,7 +30,9 @@ def parse_arguments():
 
 def get_qno_dno(line):
     splits = line.split()
-    if len(splits) == 3:
+    if len(splits) == 2:
+        qno, dno = splits
+    elif len(splits) == 3:
         qno, dno, _ = splits
     elif len(splits) == 6:
         qno, _, dno, *_ = splits
