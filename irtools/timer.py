@@ -1,4 +1,5 @@
 import timeit
+from irtools.eprint import eprint
 
 
 class Timer(object):
@@ -8,7 +9,7 @@ class Timer(object):
 
     def __enter__(self):
         if self.start_str is not None:
-            print(self.start_str)
+            eprint(self.start_str)
         self.start = timeit.default_timer()
         return self
 
@@ -17,4 +18,4 @@ class Timer(object):
         self.secs = self.end - self.start
         self.msecs = self.secs * 1000  # millisecs
         if self.end_str is not None:
-            print(f'{self.end_str}. time: {self.secs:.1f}s')
+            eprint(f'{self.end_str}. time: {self.secs:.1f}s')
