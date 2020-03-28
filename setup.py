@@ -12,7 +12,8 @@ setup(
         "scripts/wtl.py", "scripts/cleanit.py", "scripts/tokit.py",
         "scripts/spacit.py", "scripts/binarize.py", "scripts/sample.py",
         "scripts/eval_run.py", "scripts/trec2ans.py", "scripts/ans2trec.py",
-        "scripts/label.py", "scripts/pair2list.py", "scripts/run2triple.py"
+        "scripts/label.py", "scripts/pair2list.py", "scripts/run2triple.py",
+        "scripts/run2matchzoo.py"
     ],
     packages=find_packages(exclude=['docs', 'tests', 'scripts']),
     include_package_data=True,
