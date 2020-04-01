@@ -11,8 +11,11 @@ def torchgroupby(data: typing.Union[list, torch.Tensor],
     idx = torch.argsort(data[:, by])
     ordered = data[idx]
     split_idx = (ordered[1:, by] != ordered[:-1, by]).nonzero().squeeze() + 1
-    splits = torch.cat((split_idx, torch.tensor([len(ordered)]))) - torch.cat(
-        (torch.tensor([0]), split_idx))
+
+    arr1 = torch.cat((split_idx, split_idx.new_tensor([len(ordered)])))
+    arr2 = torch.cat((split_idx.new_tensor([0]), split_idx))
+
+    splits = arr1 - arr2
     groups = torch.split(ordered, splits.tolist())
     if return_index:
         idx_groups = torch.split(idx, splits.tolist())
