@@ -10,7 +10,8 @@ def torchgroupby(data: typing.Union[list, torch.Tensor],
 
     idx = torch.argsort(data[:, by])
     ordered = data[idx]
-    split_idx = (ordered[1:, by] != ordered[:-1, by]).nonzero().squeeze() + 1
+    split_idx = (ordered[1:, by] != ordered[:-1, by]).nonzero(
+        as_tuple=True)[0] + 1
 
     arr1 = torch.cat((split_idx, split_idx.new_tensor([len(ordered)])))
     arr2 = torch.cat((split_idx.new_tensor([0]), split_idx))
