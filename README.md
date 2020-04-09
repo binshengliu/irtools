@@ -1,5 +1,11 @@
 # Tools
 
+## Installation
+
+```
+pip install git+https://github.com/binshengliu/irtools.git
+```
+
 ## run_query_distributed.py
 
 Run IndriRunQuery on a [dask](https://github.com/dask/distributed)
