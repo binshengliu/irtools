@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-from collections import OrderedDict
 import argparse
 import sys
+from collections import OrderedDict
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='')
 
-    parser.add_argument('--qrels', type=argparse.FileType('r'), required=True)
+    parser.add_argument('--qrels', type=argparse.FileType('r'))
 
     parser.add_argument(
         '-i',
@@ -61,9 +61,10 @@ def main():
     args = parse_arguments()
 
     qrels = {}
-    for line in args.qrels:
-        qno, dno, rel = parse_qrel_line(line)
-        qrels.setdefault(qno, {})[dno] = rel
+    if args.qrels:
+        for line in args.qrels:
+            qno, dno, rel = parse_qrel_line(line)
+            qrels.setdefault(qno, {})[dno] = rel
 
     delimeter = '\t'
     data = OrderedDict()
