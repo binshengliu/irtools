@@ -1,5 +1,5 @@
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 def seaborn_setup():
@@ -37,9 +37,18 @@ def seaborn_setup():
         "ytick.major.pad": 10.0,
         "lines.solid_capstyle": "butt",
         "savefig.edgecolor": "#000000",
-        "savefig.facecolor": "#ffffff"
+        "savefig.facecolor": "#ffffff",
     }
 
     plt.rcParams.update(fmt)
     sns.set_style("darkgrid")
-    plt.rcParams.update({'font.sans-serif': ['Linux Biolinum O']})
+    plt.rcParams.update({"font.sans-serif": ["Linux Biolinum O"]})
+
+
+def rotate_labels(ax, which, rotation):
+    if which == "x":
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=rotation)
+    elif which == "y":
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=rotation)
+    else:
+        raise ValueError("Unknown axis")
