@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from itertools import chain
 from typing import AnyStr, Dict, Iterable, Iterator, List, Mapping, Sequence, Set, Tuple
 
 from tqdm import tqdm
@@ -53,6 +54,8 @@ class TrecRunVno:
         self.qno = qno
         self.vno = vno
         self.records = sorted(records, key=lambda x: x.score, reverse=True)
+        for rank, record in enumerate(self.records, start=1):
+            record.rank = rank
 
     @staticmethod
     def from_buffer(buffer: Sequence[str]) -> TrecRunVno:
@@ -80,6 +83,12 @@ class TrecRunVno:
         ranks = [x - 1 for x in ranks] if not zero_based else ranks
         records = [self.records[x] for x in ranks]
         return TrecRunVno(self.qno, self.vno, records)
+
+    def __iter__(self) -> Iterator[RunLine]:
+        return self.iter_lines()
+
+    def iter_lines(self) -> Iterator[RunLine]:
+        return iter(self.records)
 
 
 class TrecRunQno:
@@ -141,6 +150,9 @@ class TrecRunQno:
     def __iter__(self) -> Iterator[TrecRunVno]:
         return iter(self.vno_map.values())
 
+    def iter_lines(self) -> Iterator[RunLine]:
+        return chain.from_iterable([x.iter_lines() for x in self.vno_map.values()])
+
 
 class TrecRun:
     def __init__(self, qno_map: Mapping[str, TrecRunQno]):
@@ -165,6 +177,9 @@ class TrecRun:
 
     def num_qnos(self) -> int:
         return len(self.qno_map)
+
+    def first(self, num: int) -> TrecRun:
+        return TrecRun({k: v.first(num) for k, v in self.qno_map.items()})
 
     def select_original(self) -> TrecRun:
         qno_map = {k: v.original() for k, v in self.qno_map.items()}
@@ -191,3 +206,6 @@ class TrecRun:
 
     def __iter__(self) -> Iterator[TrecRunQno]:
         return iter(self.qno_map.values())
+
+    def iter_lines(self) -> Iterator[RunLine]:
+        return chain.from_iterable([x.iter_lines() for x in self.qno_map.values()])
