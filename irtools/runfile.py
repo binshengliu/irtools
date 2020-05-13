@@ -46,6 +46,9 @@ class RunLine:
         else:
             assert False, f"Unknown type {self.type}"
 
+    def __repr__(self) -> str:
+        return str(self)
+
 
 class TrecRunVno:
     def __init__(
@@ -90,6 +93,9 @@ class TrecRunVno:
 
     def iter_lines(self) -> Iterator[RunLine]:
         return iter(self.records)
+
+    def __repr__(self) -> str:
+        return str(self)
 
 
 class TrecRunQno:
@@ -154,6 +160,9 @@ class TrecRunQno:
     def iter_lines(self) -> Iterator[RunLine]:
         return chain.from_iterable([x.iter_lines() for x in self.vno_map.values()])
 
+    def __repr__(self) -> str:
+        return str(self)
+
 
 class TrecRun:
     def __init__(self, qno_map: Mapping[str, TrecRunQno]):
@@ -204,6 +213,9 @@ class TrecRun:
 
     def __str__(self) -> str:
         return "".join(map(str, self.qno_map.values()))
+
+    def __repr__(self) -> str:
+        return str(self)
 
     def __iter__(self) -> Iterator[TrecRunQno]:
         return iter(self.qno_map.values())
