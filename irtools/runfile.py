@@ -41,7 +41,7 @@ class RunLine:
         if self.type == "indri":
             return f"{self.vno} Q0 {self.docid} {self.rank} {self.score} indri\n"
         elif self.type == "anserini":
-            return f"{self.vno} {self.docid} {self.rank}\n"
+            return f"{self.vno}\t{self.docid}\t{self.rank}\n"
         else:
             assert False, f"Unknown type {self.type}"
 
