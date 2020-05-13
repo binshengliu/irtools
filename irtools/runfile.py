@@ -29,6 +29,7 @@ class RunLine:
             score = float(score_str)
         elif len(fields) == 3:
             type_ = "anserini"
+            identity = ""
             vno, docid, rank_str = fields
             rank = int(rank_str)
             score = 1.0 / rank
