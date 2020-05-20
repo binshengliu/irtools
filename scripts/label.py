@@ -2,11 +2,12 @@
 import argparse
 import sys
 from collections import OrderedDict
+from typing import Dict, List, Tuple
 
 import numpy as np
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='')
 
     parser.add_argument('--qrels', type=argparse.FileType('r'))
@@ -39,10 +40,11 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def parse_qrel_line(line):
+def parse_qrel_line(line: str) -> Tuple[str, str, int]:
     splits = line.split()
     if len(splits) == 2:
-        qno, dno, rel = *splits, 1
+        qno, dno = splits
+        rel = "1"
     elif len(splits) == 3:
         qno, dno, rel = splits
     elif len(splits) == 4:
@@ -51,7 +53,7 @@ def parse_qrel_line(line):
     return qno, dno, int(rel)
 
 
-def parse_run_line(line):
+def parse_run_line(line: str) -> Tuple[str, str]:
     splits = line.split()
     if len(splits) == 2:
         qno, dno = splits
@@ -64,17 +66,17 @@ def parse_run_line(line):
     return qno, dno
 
 
-def main():
+def main() -> None:
     args = parse_arguments()
 
-    qrels = {}
+    qrels: Dict[str, Dict[str, int]] = {}
     if args.qrels:
         for line in args.qrels:
             qno, dno, rel = parse_qrel_line(line)
             qrels.setdefault(qno, OrderedDict())[dno] = rel
 
     delimeter = '\t'
-    data = OrderedDict()
+    data: Dict[str, List[Tuple[str, int]]] = OrderedDict()
     lines = {}
     for line in args.input:
         delimeter = '\t' if '\t' in line else ' '
