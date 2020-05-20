@@ -2,14 +2,15 @@
 import argparse
 import sys
 from collections import OrderedDict
+from typing import Dict, List
 
 import numpy as np
 from tqdm import tqdm
 
 
-def parse_arguments():
-    def to_zero_base(x):
-        x = int(x)
+def parse_arguments() -> argparse.Namespace:
+    def to_zero_base(input_: str) -> int:
+        x = int(input_)
         if x < 1:
             raise argparse.ArgumentTypeError("Field starts from 1.")
         return x - 1
@@ -37,9 +38,9 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def main():
+def main() -> None:
     args = parse_arguments()
-    data = OrderedDict()
+    data: Dict[str, List[str]] = OrderedDict()
     for line in args.input:
         if not line.strip():
             continue
@@ -57,8 +58,7 @@ def main():
             keys = keys[-num:]
         else:
             assert False
-        keys = set(keys)
-        data = OrderedDict([(k, v) for k, v in data.items() if k in keys])
+        data = OrderedDict([(k, v) for k, v in data.items() if k in set(keys)])
 
     if args.mode in ["value", "both"]:
         outputs = OrderedDict()
