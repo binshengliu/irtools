@@ -3,6 +3,8 @@ import argparse
 import sys
 from collections import OrderedDict
 
+import numpy as np
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='')
@@ -28,6 +30,11 @@ def parse_arguments():
         action='store_true',
         help='Append relevant documents to form training data. '
         'This implies output in a three column format: qno\tdno\trel')
+
+    parser.add_argument(
+        '--sort-by-relevance',
+        action='store_true',
+        help='Sort documents in descending relevance order.')
 
     return parser.parse_args()
 
@@ -64,28 +71,36 @@ def main():
     if args.qrels:
         for line in args.qrels:
             qno, dno, rel = parse_qrel_line(line)
-            qrels.setdefault(qno, {})[dno] = rel
+            qrels.setdefault(qno, OrderedDict())[dno] = rel
 
     delimeter = '\t'
     data = OrderedDict()
+    lines = {}
     for line in args.input:
         delimeter = '\t' if '\t' in line else ' '
         qno, dno = parse_run_line(line)
         rel = qrels.get(qno, {}).pop(dno, 0)
 
-        if args.append_missing_relevant:
-            data.setdefault(qno, []).append((dno, rel))
-        else:
-            args.output.write(line.rstrip('\n') + f'{delimeter}{rel}\n')
+        data.setdefault(qno, []).append((dno, rel))
+        lines[(qno, dno)] = line.rstrip('\n')
 
     if args.append_missing_relevant:
         for qno in data.keys():
             for dno, rel in qrels.get(qno, {}).items():
                 data[qno].append((dno, rel))
 
-        for qno, dno_rel in data.items():
-            for dno, rel in dno_rel:
+    if args.sort_by_relevance:
+        for qno in data.keys():
+            rel_array = np.array([x[1] for x in data[qno]])
+            indexes = np.argsort(-rel_array, kind="stable")
+            data[qno] = [data[qno][i] for i in indexes]
+
+    for qno, dno_rel in data.items():
+        for dno, rel in dno_rel:
+            if args.append_missing_relevant:
                 args.output.write(delimeter.join([qno, dno, str(rel)]) + '\n')
+            else:
+                args.output.write(lines[(qno, dno)] + f'{delimeter}{rel}\n')
 
 
 if __name__ == '__main__':
