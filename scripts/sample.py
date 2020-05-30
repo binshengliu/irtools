@@ -51,7 +51,8 @@ def main() -> None:
         keys = list(data.keys())
         num = min(len(keys), args.key_num)
         if args.selection == "random":
-            keys = np.random.choice(keys, num, replace=False)
+            replace = True if num > len(keys) else False
+            keys = np.random.choice(keys, num, replace=replace)
         elif args.selection == "front":
             keys = keys[:num]
         elif args.selection == "back":
@@ -65,7 +66,8 @@ def main() -> None:
         for k, v in tqdm(data.items(), desc="Sampling values"):
             num = min(len(v), args.value_num)
             if args.selection == "random":
-                v = np.random.choice(v, num, replace=False)
+                replace = True if num > len(v) else False
+                v = np.random.choice(v, num, replace=replace)
             elif args.selection == "front":
                 v = v[:num]
             elif args.selection == "back":
