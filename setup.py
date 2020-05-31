@@ -25,6 +25,7 @@ setup(
         "scripts/pair2list.py",
         "scripts/filter.py",
         "scripts/ttest_eval.py",
+        "scripts/groupby.py",
     ],
     packages=find_packages(exclude=["docs", "tests", "scripts"]),
     include_package_data=True,
