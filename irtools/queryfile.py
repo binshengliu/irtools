@@ -8,10 +8,15 @@ from more_itertools import with_iter
 
 
 class TrecQuery:
-    def __init__(self, path: os.PathLike[AnyStr]):
-        self._qno_map = OrderedDict(
-            line.strip("\n").split("\t") for line in with_iter(open(path, "r"))
-        )
+    def __init__(
+        self,
+        path: os.PathLike[AnyStr],
+        sep: str = "\t",
+        qid_field: int = 0,
+        query_field: int = 1,
+    ):
+        content = [line.strip("\n").split(sep) for line in with_iter(open(path, "r"))]
+        self._qno_map = OrderedDict([(x[qid_field], x[query_field]) for x in content])
 
     def __iter__(self) -> Iterator[Tuple[str, str]]:
         return iter(self._qno_map.items())
