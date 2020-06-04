@@ -86,7 +86,7 @@ def main() -> None:
 
     data = pd.read_csv(args.input, sep=args.input_delimiter, header=None)
 
-    grouped = data.groupby(by=args.by, as_index=False)
+    grouped = data.groupby(by=args.by, as_index=False, sort=False)
     if args.op == "sample":
         output = sample_wrapper(grouped, opargs, varkw)
     else:
