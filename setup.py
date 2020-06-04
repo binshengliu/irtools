@@ -26,6 +26,8 @@ setup(
         "scripts/filter.py",
         "scripts/ttest_eval.py",
         "scripts/groupby.py",
+        "scripts/lineplot_eval.py",
+        "scripts/boxplot_eval.py",
     ],
     packages=find_packages(exclude=["docs", "tests", "scripts"]),
     include_package_data=True,
