@@ -28,6 +28,7 @@ setup(
         "scripts/groupby.py",
         "scripts/lineplot_eval.py",
         "scripts/boxplot_eval.py",
+        "scripts/euclidean_models.py",
     ],
     packages=find_packages(exclude=["docs", "tests", "scripts"]),
     include_package_data=True,
