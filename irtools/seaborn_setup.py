@@ -1,8 +1,9 @@
+import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def seaborn_setup():
+def seaborn_setup() -> None:
     fmt = {
         "backend": "Cairo",
         "text.usetex": False,
@@ -45,7 +46,7 @@ def seaborn_setup():
     plt.rcParams.update({"font.sans-serif": ["Linux Biolinum O"]})
 
 
-def rotate_labels(ax, which, rotation):
+def rotate_labels(ax: matplotlib.axes.Axes, which: str, rotation: float) -> None:
     if which == "x":
         ax.set_xticklabels(ax.get_xticklabels(), rotation=rotation)
     elif which == "y":
