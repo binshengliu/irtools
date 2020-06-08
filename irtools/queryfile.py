@@ -39,3 +39,9 @@ class TrecQuery:
     def tail(self, n: int) -> TrecQuery:
         qno_map = OrderedDict((k, v) for k, v in list(self._qno_map.items())[n:])
         return TrecQuery(qno_map)
+
+    def __repr__(self) -> str:
+        return repr(self._qno_map)
+
+    def __str__(self) -> str:
+        return str(self._qno_map)
