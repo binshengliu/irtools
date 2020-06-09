@@ -2,7 +2,7 @@
 import argparse
 import sys
 from collections import OrderedDict
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -53,17 +53,20 @@ def parse_qrel_line(line: str) -> Tuple[str, str, int]:
     return qno, dno, int(rel)
 
 
-def parse_run_line(line: str) -> Tuple[str, str]:
+def parse_run_line(line: str) -> Tuple[str, str, Optional[float]]:
     splits = line.split()
     if len(splits) == 2:
         qno, dno = splits
+        score = None
     elif len(splits) == 3:
         qno, dno, _ = splits
+        score = None
     elif len(splits) == 6:
-        qno, _, dno, *_ = splits
+        qno, _, dno, _, score_str, _ = splits
+        score = float(score_str)
     else:
         assert False, f'Unknown format {len(splits)} fields found'
-    return qno, dno
+    return qno, dno, score
 
 
 def main() -> None:
@@ -76,20 +79,20 @@ def main() -> None:
             qrels.setdefault(qno, OrderedDict())[dno] = rel
 
     delimeter = '\t'
-    data: Dict[str, List[Tuple[str, int]]] = OrderedDict()
-    lines = {}
+    data: Dict[str, List[Tuple[str, int, Optional[float]]]] = OrderedDict()
     for line in args.input:
         delimeter = '\t' if '\t' in line else ' '
-        qno, dno = parse_run_line(line)
+        qno, dno, score = parse_run_line(line)
         rel = qrels.get(qno, {}).pop(dno, 0)
 
-        data.setdefault(qno, []).append((dno, rel))
-        lines[(qno, dno)] = line.rstrip('\n')
+        data.setdefault(qno, []).append((dno, rel, score))
 
     if args.append_missing_relevant:
         for qno in data.keys():
+            qno_scores = [x[2] for x in data[qno] if x[2] is not None]
+            max_score = max(qno_scores) if qno_scores else None
             for dno, rel in qrels.get(qno, {}).items():
-                data[qno].append((dno, rel))
+                data[qno].append((dno, rel, max_score))
 
     if args.sort_by_relevance:
         for qno in data.keys():
@@ -98,11 +101,12 @@ def main() -> None:
             data[qno] = [data[qno][i] for i in indexes]
 
     for qno, dno_rel in data.items():
-        for dno, rel in dno_rel:
-            if args.append_missing_relevant:
-                args.output.write(delimeter.join([qno, dno, str(rel)]) + '\n')
+        for dno, rel, score in dno_rel:
+            if score is not None:
+                line = delimeter.join([qno, dno, str(score), str(rel)]) + '\n'
             else:
-                args.output.write(lines[(qno, dno)] + f'{delimeter}{rel}\n')
+                line = delimeter.join([qno, dno, str(rel)]) + '\n'
+            args.output.write(line)
 
 
 if __name__ == '__main__':
