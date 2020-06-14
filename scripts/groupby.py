@@ -53,7 +53,9 @@ cut -d' ' -f1,2 lm.run | groupby.py --by 0 --op count --input-delimiter ' '
         help="Specify the column index (starts from 0) to use as the key.",
     )
     parser.add_argument(
-        "--op", choices=["nth", "head", "tail", "sample", "count"], required=True
+        "--op",
+        choices=["nth", "head", "tail", "sample", "count", "pad_row"],
+        required=True,
     )
 
     parser.add_argument(
@@ -75,6 +77,24 @@ def sample_wrapper(
     return grouped.apply(lambda x: x.sample(*opargs, **varkw))
 
 
+def pad_row(
+    grouped: pd.core.groupby.DataFrameGroupBy,
+    opargs: List[Union[int, float, str]],
+    varkw: Dict[str, Union[int, float, str]],
+) -> pd.DataFrame:
+    assert len(opargs) == 1
+    assert isinstance(opargs[0], int)
+    n_rows = opargs[0]
+
+    def _pad_row(df: pd.DataFrame) -> pd.DataFrame:
+        if n_rows > len(df):
+            return df.append(df.iloc[[-1] * (n_rows - len(df))])
+        else:
+            return df
+
+    return grouped.apply(_pad_row)
+
+
 def main() -> None:
     args = parse_arguments()
     if isinstance(args.args, dict):
@@ -89,6 +109,8 @@ def main() -> None:
     grouped = data.groupby(by=args.by, as_index=False, sort=False)
     if args.op == "sample":
         output = sample_wrapper(grouped, opargs, varkw)
+    elif args.op == "pad_row":
+        output = pad_row(grouped, opargs, varkw)
     else:
         func = getattr(grouped, args.op)
         spec = inspect.getfullargspec(func)
