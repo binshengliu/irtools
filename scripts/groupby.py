@@ -30,6 +30,13 @@ cat bm25.run | groupby.py --by 0 --op sample --args '{"n": 10, "replace": True}'
 
 cut -d' ' -f1,2 lm.run | groupby.py --by 0 --op count --input-delimiter ' '
 
+4. Collapse columns into one field:
+
+echo -e '1\\t2\\n1\\t2\\n2\\t2\\n2\\t2' | \
+groupby.py --by 0 --op collapse --args '[1, ", "]'
+1	2, 2
+2	2, 2
+
     """,
         formatter_class=RawTextHelpFormatter,
     )
@@ -54,7 +61,7 @@ cut -d' ' -f1,2 lm.run | groupby.py --by 0 --op count --input-delimiter ' '
     )
     parser.add_argument(
         "--op",
-        choices=["nth", "head", "tail", "sample", "count", "pad_row"],
+        choices=["nth", "head", "tail", "sample", "count", "pad_row", "collapse"],
         required=True,
     )
 
@@ -95,6 +102,20 @@ def pad_row(
     return grouped.apply(_pad_row)
 
 
+def collapse(
+    grouped: pd.core.groupby.DataFrameGroupBy,
+    opargs: List[Union[int, float, str]],
+    varkw: Dict[str, Union[int, float, str]],
+) -> pd.DataFrame:
+    assert len(opargs) == 2
+    assert isinstance(opargs[0], int)
+    field, sep = opargs[0], str(opargs[1])
+
+    collapsed = grouped[field].apply(lambda x: x.astype(str).str.cat(sep=sep))
+    collapsed.index.name = "unused"
+    return collapsed.reset_index()
+
+
 def main() -> None:
     args = parse_arguments()
     if isinstance(args.args, dict):
@@ -106,12 +127,17 @@ def main() -> None:
 
     data = pd.read_csv(args.input, sep=args.input_delimiter, header=None)
 
-    grouped = data.groupby(by=args.by, as_index=False, sort=False)
     if args.op == "sample":
+        grouped = data.groupby(by=args.by, as_index=False, sort=False)
         output = sample_wrapper(grouped, opargs, varkw)
     elif args.op == "pad_row":
+        grouped = data.groupby(by=args.by, as_index=False, sort=False)
         output = pad_row(grouped, opargs, varkw)
+    elif args.op == "collapse":
+        grouped = data.groupby(by=args.by, sort=False)
+        output = collapse(grouped, opargs, varkw)
     else:
+        grouped = data.groupby(by=args.by, as_index=False, sort=False)
         func = getattr(grouped, args.op)
         spec = inspect.getfullargspec(func)
         try:
