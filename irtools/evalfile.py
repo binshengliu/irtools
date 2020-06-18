@@ -4,6 +4,7 @@ import os
 from collections import OrderedDict
 from typing import AnyStr, Dict, Iterator, List, Optional, Tuple
 
+import pandas as pd
 from more_itertools import first, with_iter
 
 
@@ -64,3 +65,6 @@ class TrecEval:
             return list(first(self._content.values()).values())
         else:
             return list(self._content[metric].values())
+
+    def to_frame(self) -> pd.DataFrame:
+        return pd.DataFrame.from_dict(self._content)
