@@ -1,3 +1,5 @@
+from typing import Union
+
 import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -53,3 +55,18 @@ def rotate_labels(ax: matplotlib.axes.Axes, which: str, rotation: float) -> None
         ax.set_xticklabels(ax.get_xticklabels(), rotation=rotation)
     else:
         raise ValueError("Unknown axis")
+
+
+def annotate_bars(ax: matplotlib.axes.Axes, size: Union[str, int] = "small") -> None:
+    total = sum([p.get_height() for p in ax.patches])
+    for p in ax.patches:
+        text = "{}({:.1%})".format(p.get_height(), p.get_height() / total)
+        ax.annotate(
+            text,
+            (p.get_x() + p.get_width() / 2.0, p.get_height() + 0.05),
+            ha="center",
+            va="center",
+            xytext=(0, 10),
+            textcoords="offset points",
+            size=size,
+        )
