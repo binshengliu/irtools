@@ -3,7 +3,7 @@ import argparse
 import sys
 from argparse import RawTextHelpFormatter
 from itertools import groupby, islice
-from typing import Iterator, List, Tuple
+from typing import Iterator, Tuple
 
 import more_itertools as mi
 import numpy as np
@@ -25,6 +25,7 @@ sample: ratio_or_number
 count: no argument
 pad_row: number
 collapse: separator
+unique: [key_field]
 
 Recipes:
 
@@ -46,6 +47,10 @@ echo -e '1\\t2\\n1\\t2\\n2\\t2\\n2\\t2' | \
 groupbys.py --key 1 --op collapse --args ", "
 1	2, 2
 2	2, 2
+
+5. Remove duplicate documents in a run file:
+
+cat bm25.run | groupbys.py --key 1 --op unique --args 3 --input-delimiter ' '
     """,
         formatter_class=RawTextHelpFormatter,
     )
@@ -70,7 +75,16 @@ groupbys.py --key 1 --op collapse --args ", "
     )
     parser.add_argument(
         "--op",
-        choices=["nth", "head", "tail", "sample", "count", "pad_row", "collapse"],
+        choices=[
+            "nth",
+            "head",
+            "tail",
+            "sample",
+            "count",
+            "pad_row",
+            "collapse",
+            "unique",
+        ],
         required=True,
     )
 
@@ -84,9 +98,9 @@ groupbys.py --key 1 --op collapse --args ", "
 
 
 def op_sample(
-    giter: Iterator[Tuple[str, Iterator[str]]], args: List[str],
+    giter: Iterator[Tuple[str, Iterator[str]]], args: argparse.Namespace,
 ) -> Iterator[Tuple[str, str]]:
-    value = float(args[0])
+    value = float(args.args[0])
     for k, gi in giter:
         g = list(gi)
         size = int(len(g) * value) if value < 1.0 else int(value)
@@ -97,9 +111,9 @@ def op_sample(
 
 
 def op_pad_row(
-    giter: Iterator[Tuple[str, Iterator[str]]], args: List[str]
+    giter: Iterator[Tuple[str, Iterator[str]]], args: argparse.Namespace
 ) -> Iterator[Tuple[str, str]]:
-    n_rows = int(args[0])
+    n_rows = int(args.args[0])
 
     for k, gi in giter:
         for i in islice(mi.repeat_last(gi), n_rows):
@@ -107,9 +121,9 @@ def op_pad_row(
 
 
 def op_head(
-    giter: Iterator[Tuple[str, Iterator[str]]], args: List[str]
+    giter: Iterator[Tuple[str, Iterator[str]]], args: argparse.Namespace
 ) -> Iterator[Tuple[str, str]]:
-    n_rows = int(args[0])
+    n_rows = int(args.args[0])
 
     for k, gi in giter:
         for i in islice(gi, n_rows):
@@ -117,9 +131,9 @@ def op_head(
 
 
 def op_tail(
-    giter: Iterator[Tuple[str, Iterator[str]]], args: List[str]
+    giter: Iterator[Tuple[str, Iterator[str]]], args: argparse.Namespace
 ) -> Iterator[Tuple[str, str]]:
-    n_rows = int(args[0])
+    n_rows = int(args.args[0])
 
     for k, gi in giter:
         for i in mi.tail(n_rows, gi):
@@ -127,28 +141,49 @@ def op_tail(
 
 
 def op_collapse(
-    giter: Iterator[Tuple[str, Iterator[str]]], args: List[str]
+    giter: Iterator[Tuple[str, Iterator[str]]], args: argparse.Namespace
 ) -> Iterator[Tuple[str, str]]:
-    sep = args[0]
+    sep = args.args[0]
 
     for k, g in giter:
         yield k, sep.join(g)
 
 
 def op_nth(
-    giter: Iterator[Tuple[str, Iterator[str]]], args: List[str]
+    giter: Iterator[Tuple[str, Iterator[str]]], args: argparse.Namespace
 ) -> Iterator[Tuple[str, str]]:
-    n = int(args[0])
+    n = int(args.args[0])
 
     for k, g in giter:
         yield k, mi.nth_or_last(g, n)
 
 
 def op_count(
-    giter: Iterator[Tuple[str, Iterator[str]]], args: List[str]
+    giter: Iterator[Tuple[str, Iterator[str]]], args: argparse.Namespace
 ) -> Iterator[Tuple[str, str]]:
     for k, g in giter:
         yield k, str(mi.ilen(g))
+
+
+def op_unique(
+    giter: Iterator[Tuple[str, Iterator[str]]], args: argparse.Namespace
+) -> Iterator[Tuple[str, str]]:
+    def key_func(k: str, g: str) -> str:
+        # By default compare entire line without key
+        if not args.args:
+            return g
+
+        splits = g.split(args.input_delimiter)
+        splits.insert(args.key, k)
+        key_field = int(args.args[0]) - 1
+        if key_field < 0 or key_field >= len(splits):
+            eprint(f"Please specify unique field within range [1, {len(splits)}]")
+            exit(1)
+        return splits[key_field]
+
+    for k, g in giter:
+        for u in mi.unique_everseen(g, key=lambda x: key_func(k, x)):
+            yield k, u
 
 
 def main() -> None:
@@ -169,7 +204,7 @@ def main() -> None:
 
     func_name = f"op_{args.op}"
     if func_name in globals():
-        oiter = globals()[func_name](giter, args.args)
+        oiter = globals()[func_name](giter, args)
     else:
         eprint(f"Unimplemented operation `{args.op}`")
         exit(1)
