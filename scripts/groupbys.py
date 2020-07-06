@@ -60,16 +60,29 @@ cat bm25.run | groupbys.py --key 1 --op unique --args 3 --input-delimiter ' '
     )
 
     parser.add_argument(
-        "--input-delimiter", metavar="", default="\t", help="default to \\t"
+        "--input-delimiter",
+        "--input-sep",
+        metavar="SEP",
+        default="\t",
+        help="default to \\t",
     )
     parser.add_argument(
-        "--output-delimiter", metavar="", default="\t", help="default to \\t"
+        "--output-delimiter",
+        "--output-sep",
+        metavar="SEP",
+        default="\t",
+        help="default to \\t",
     )
+
+    def field_type(x: str) -> int:
+        if int(x) < 1:
+            raise argparse.ArgumentTypeError("Field starts from 1")
+        return int(x) - 1
 
     parser.add_argument(
         "--key",
-        metavar="int or List[int]",
-        type=lambda x: int(x) - 1,
+        "--by",
+        type=field_type,
         default=0,
         help="Specify the column index (starts from 1 like sort) to use as the key.",
     )
@@ -98,7 +111,7 @@ cat bm25.run | groupbys.py --key 1 --op unique --args 3 --input-delimiter ' '
 
 
 def op_sample(
-    giter: Iterator[Tuple[str, Iterator[str]]], args: argparse.Namespace,
+    giter: Iterator[Tuple[str, Iterator[str]]], args: argparse.Namespace
 ) -> Iterator[Tuple[str, str]]:
     value = float(args.args[0])
     for k, gi in giter:
