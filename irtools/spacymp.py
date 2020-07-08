@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import multiprocessing as mp
-from typing import Iterable, Iterator, List
+from itertools import repeat
+from typing import Any, Callable, Iterable, Iterator, List, Optional, Union
 
 import spacy
 from irtools.log import get_logger
@@ -9,62 +10,44 @@ from tqdm import tqdm
 logger = get_logger("spacymp")
 
 g_nlp = None
-g_lemmatize = False
-g_remove_stop = False
-g_remove_punct = False
 
 
-def init_nlp(
-    lang: str,
-    disable: List[str],
-    lemmatize: bool,
-    remove_stop: bool,
-    remove_punct: bool,
-) -> None:
-    global g_nlp, g_lemmatize, g_remove_stop, g_remove_punct
+def init_nlp(lang: str, disable: List[str]) -> None:
+    global g_nlp
     g_nlp = spacy.load(lang, disable=disable)
-    g_lemmatize = lemmatize
-    g_remove_stop = remove_stop
-    g_remove_punct = remove_punct
 
 
-def process(line: str) -> List[str]:
-    global g_nlp, g_lemmatize, g_remove_stop, g_remove_punct
+def process(args: Any) -> Union[List[spacy.tokens.Doc], Any]:
+    global g_nlp
     assert g_nlp is not None
-    tokenized = g_nlp(line)
 
-    def keep(token: spacy.tokens.Token) -> bool:
-        if g_remove_stop and token.is_stop:
-            return False
-        if g_remove_punct and token.is_punct:
-            return False
-        return True
+    lines: List[str] = args[:-1]
+    callback: Optional[Callable[..., Any]] = args[-1]
 
-    def transform(token: spacy.tokens.Token) -> str:
-        return token.lemma_ if g_lemmatize else token.text  # type: ignore
+    tokenized = [g_nlp(line) for line in lines]
 
-    return [transform(x) for x in tokenized if keep(x)]
+    if callback is not None:
+        return callback(*tokenized)
+    return tokenized
 
 
 def spacymp(
-    input_: Iterable[str],
+    *input_: Iterable[str],
+    callback: Optional[Callable[..., Any]] = None,
     lang: str = "en",
     disable: List[str] = ["parser", "ner"],
     n_process: int = 1,
     batch_size: int = 1000,
-    lemmatize: bool = False,
-    remove_stop: bool = False,
-    remove_punct: bool = False,
-) -> Iterator[List[str]]:
-    texts = list(input_)
-    logger.info(f"Received {len(texts)} lines")
+) -> Iterator[Any]:
+    texts = [list(x) for x in input_]
+    logger.info(f"Received {len(texts[0])} lines")
     logger.info(f"Initialize {n_process} processes")
-    with mp.Pool(
-        n_process,
-        initializer=init_nlp,
-        initargs=(lang, disable, lemmatize, remove_stop, remove_punct),
-    ) as pool:
-        pool_iter = pool.imap(process, texts, chunksize=batch_size)
-        for doc_tokens in tqdm(pool_iter, total=len(texts)):
-            yield doc_tokens
-            # yield spacy.tokens.Doc(vocab).from_bytes(doc_tokens)
+    if n_process > 1:
+        with mp.Pool(n_process, initializer=init_nlp, initargs=(lang, disable)) as pool:
+            out_iter: Iterator[Any] = pool.imap(
+                process, zip(*texts, repeat(callback)), chunksize=batch_size
+            )
+            yield from tqdm(out_iter, total=len(texts[0]))
+    else:
+        out_iter = map(process, zip(*texts, repeat(callback)))
+        yield from tqdm(out_iter, total=len(texts[0]))
