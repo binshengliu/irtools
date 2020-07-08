@@ -6,7 +6,7 @@ from typing import Optional, TextIO
 
 def get_logger(
     name: str,
-    format: str = "[%(asctime)s][%(levelname)s] - %(message)s",
+    format: str = "[%(asctime)s][%(name)s][%(levelname)s] - %(message)s",
     level: int = logging.INFO,
     stream: Optional[TextIO] = sys.stderr,
     path: Optional[str] = None,
