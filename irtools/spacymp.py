@@ -49,5 +49,6 @@ def spacymp(
             )
             yield from tqdm(out_iter, total=len(texts[0]))
     else:
+        init_nlp(lang, disable)
         out_iter = map(process, zip(*texts, repeat(callback)))
         yield from tqdm(out_iter, total=len(texts[0]))
