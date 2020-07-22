@@ -4,6 +4,8 @@ from collections import abc
 import numpy as np
 import torch
 
+# Keep an eye on https://github.com/python/mypy/issues/731 when mypy supports recursive
+# types.
 T = Union[torch.Tensor, Sequence[torch.Tensor], Mapping[Any, torch.Tensor]]
 N = Union[np.ndarray, List[np.ndarray], Dict[Any, np.ndarray]]
 
