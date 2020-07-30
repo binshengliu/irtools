@@ -74,6 +74,8 @@ def parse_arguments():
 
 
 def main():
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
     args = parse_arguments()
     if args.list_models:
         args.output.writelines([x + '\n' for x in get_all_models()])
