@@ -1,9 +1,10 @@
-from tqdm import tqdm
-from typing import Any, AnyStr, Iterator
 import os
+from typing import Any, AnyStr, Iterator
+
+from tqdm import tqdm
 
 
-def tqdmf(path: os.PathLike[AnyStr], *args: Any, **kwargs: Any) -> Iterator[str]:
+def tqdmf(path: "os.PathLike[AnyStr]", *args: Any, **kwargs: Any) -> Iterator[str]:
     desc = kwargs.pop("desc", str(path).rsplit("/", maxsplit=1)[-1])
     with tqdm(
         total=os.stat(path).st_size,
