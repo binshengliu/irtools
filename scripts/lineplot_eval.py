@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import argparse
 
 import matplotlib.pyplot as plt
@@ -14,6 +15,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--show", action="store_true")
     parser.add_argument("--names")
     parser.add_argument("--no-xticks", action="store_true")
+    parser.add_argument("--metric", nargs="*")
 
     return parser.parse_args()
 
@@ -28,7 +30,9 @@ def main() -> None:
 
     table = []
     for name, eval_ in zip(names, evals):
-        table.extend([(name,) + x for x in eval_])
+        table.extend(
+            [(name,) + x for x in eval_ if args.metric and x[0] in args.metric]
+        )
     data = pd.DataFrame(data=table, columns=["Name", "Metric", "Qid", "Value"])
 
     sns.lineplot(
