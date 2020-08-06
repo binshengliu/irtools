@@ -16,6 +16,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--names")
     parser.add_argument("--no-xticks", action="store_true")
     parser.add_argument("--metric", nargs="*")
+    parser.add_argument("--sort", choices=["ascending", "descending"])
+    parser.add_argument("--sample", type=int)
 
     return parser.parse_args()
 
@@ -30,10 +32,24 @@ def main() -> None:
 
     table = []
     for name, eval_ in zip(names, evals):
-        table.extend(
-            [(name,) + x for x in eval_ if args.metric and x[0] in args.metric]
-        )
-    data = pd.DataFrame(data=table, columns=["Name", "Metric", "Qid", "Value"])
+        one = [(name,) + x for x in eval_ if args.metric and x[0] in args.metric]
+        df_one = pd.DataFrame(data=one, columns=["Name", "Metric", "Qid", "Value"])
+        table.append(df_one)
+
+    if args.sample:
+        ids = table[0]["Qid"].drop_duplicates().sample(n=args.sample)
+        table = [
+            df.groupby(["Name", "Metric"]).apply(
+                lambda x: x.set_index("Qid").reindex(ids).reset_index()
+            )
+            for df in table
+        ]
+
+    if args.sort:
+        ids = table[0].sort_values("Value", ascending=args.sort == "ascending")["Qid"]
+        table = [df.set_index("Qid").reindex(ids).reset_index() for df in table]
+
+    data = pd.concat(table)
 
     sns.lineplot(
         x="Qid", y="Value", hue="Metric", style="Name", data=data, sort=False, ax=ax
