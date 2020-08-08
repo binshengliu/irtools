@@ -32,6 +32,7 @@ setup(
         "scripts/lemmatize.py",
         "scripts/groupbys.py",
         "scripts/spacify.py",
+        "scripts/subword_tf_idf.py",
     ],
     packages=find_packages(exclude=["docs", "tests", "scripts"]),
     include_package_data=True,
