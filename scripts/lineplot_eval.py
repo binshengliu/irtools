@@ -18,6 +18,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--metric", nargs="*")
     parser.add_argument("--sort", choices=["ascending", "descending"])
     parser.add_argument("--sample", type=int)
+    parser.add_argument("--avg", action="store_true")
 
     return parser.parse_args()
 
@@ -54,6 +55,34 @@ def main() -> None:
     sns.lineplot(
         x="Qid", y="Value", hue="Metric", style="Name", data=data, sort=False, ax=ax
     )
+
+    if args.avg:
+        avg = data.groupby(["Name", "Metric"]).mean()
+
+        def fill_avg(x):
+            value = avg.loc[x[["Name", "Metric"]]].iloc[0, 0]
+            x["Value"] = value
+            return x
+
+        avged = data.apply(fill_avg, axis=1)
+        sns.lineplot(
+            x="Qid",
+            y="Value",
+            hue="Metric",
+            style="Name",
+            data=avged,
+            sort=False,
+            ax=ax,
+            legend=False,
+        )
+        values = sorted(avg["Value"].tolist())
+        ax.text(ids.iloc[0], values[0] - 0.1, f"{values[0]:.3f}")
+        ax.text(ids.iloc[0], values[0] + 0.1, f"{values[1]:.3f}")
+        # import numpy as np
+
+        # newticks = np.concatenate((ax.get_yticks(), avg["Value"].to_numpy()))
+        # ax.set_yticks(newticks)
+
     ax.tick_params(axis="x", rotation=45)
     if args.no_xticks:
         ax.set_xticks([])
