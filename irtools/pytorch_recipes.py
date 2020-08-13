@@ -1,6 +1,6 @@
-from typing import Dict, List, Sequence, Union, Mapping, Any
-
 from collections import abc
+from typing import Any, Dict, List, Mapping, Sequence, Union
+
 import numpy as np
 import torch
 
