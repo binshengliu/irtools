@@ -55,7 +55,7 @@ def main() -> None:
 
     last_column = "p-value" if len(args.evals) == 2 else "p-value(anova)"
     df = pd.DataFrame(data, columns=["Measure", *filenames, last_column])
-    print(df.to_latex(index=False, float_format=lambda f: "{:.3f}".format(f)))
+    print(df.to_string(index=False, float_format=lambda f: "{:.3f}".format(f)))
 
 
 if __name__ == "__main__":
