@@ -17,7 +17,7 @@ def tensor_to_numpy(
         return data.cpu().numpy()
     elif isinstance(data, abc.Mapping):
         return {k: tensor_to_numpy(v) for k, v in data.items()}
-    elif isinstance(data, abc.Sequence):
+    elif isinstance(data, abc.Sequence) and not isinstance(data, (bytes, str)):
         return [tensor_to_numpy(x) for x in data]
     else:
-        raise TypeError(f"Unknown data type {type(data)}")
+        return data
