@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import re
 import sys
 from collections import OrderedDict
 from typing import Dict, List, Optional, Tuple
@@ -88,6 +89,7 @@ def main() -> None:
         str, List[Tuple[str, int, Optional[float], Optional[int]]]
     ] = OrderedDict()
     for line in args.input:
+        line = re.sub(r"\s*#.*", "", line)
         delimeter = "\t" if "\t" in line else " "
         qno, dno, score, rank = parse_run_line(line)
         rel = qrels.get(qno, {}).pop(dno, 0)
