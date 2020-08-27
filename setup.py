@@ -34,6 +34,7 @@ setup(
         "scripts/spacify.py",
         "scripts/subword_tf_idf.py",
         "scripts/binarize_columns.py",
+        "scripts/trecweb2tsv.py",
     ],
     packages=find_packages(exclude=["docs", "tests", "scripts"]),
     include_package_data=True,
