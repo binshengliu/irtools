@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 from collections import OrderedDict
-from typing import Dict
+from typing import Dict, Set
 
 import pandas as pd
+from irtools.eprint import eprint
 from scipy import stats
 
 
@@ -30,16 +31,26 @@ def main() -> None:
 
     filenames = [x.name for x in args.evals]
     results: Dict[str, Dict[str, Dict[str, float]]] = OrderedDict()
+    file_metrics: Dict[str, Set[str]] = OrderedDict()
     for eval_ in args.evals:
         for line in eval_:
             metric, qid, value = line.split()
+            file_metrics.setdefault(eval_.name, set()).add(metric)
             results.setdefault(metric, OrderedDict())
             results[metric].setdefault(eval_.name, {})
             results[metric][eval_.name][qid] = float(value)
 
+    common_metrics = set.intersection(*list(file_metrics.values()))
+    eprint(f"Common metrics: {sorted(common_metrics)}")
+    for filename, metrics in file_metrics.items():
+        diff = metrics - common_metrics
+        if diff:
+            eprint(f"{filename}: disregard {sorted(diff)}")
+
     agg = {}
     data = []
-    for metric, file_results in results.items():
+    for metric in common_metrics:
+        file_results = results[metric]
         qids = set.union(*[set(x.keys()) for x in file_results.values()])
         agg[metric] = {file_: x["all"] for file_, x in file_results.items()}
         qids.difference_update({"all"})
@@ -53,6 +64,8 @@ def main() -> None:
 
         data.append((metric, *[agg[metric][x] for x in filenames], pvalue))
 
+    # Sort by metric names
+    data = sorted(data)
     last_column = "p-value" if len(args.evals) == 2 else "p-value(anova)"
     df = pd.DataFrame(data, columns=["Measure", *filenames, last_column])
     print(df.to_string(index=False, float_format=lambda f: "{:.3f}".format(f)))
