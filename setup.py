@@ -35,6 +35,7 @@ setup(
         "scripts/subword_tf_idf.py",
         "scripts/binarize_columns.py",
         "scripts/trecweb2tsv.py",
+        "scripts/cv_eval.py",
     ],
     packages=find_packages(exclude=["docs", "tests", "scripts"]),
     include_package_data=True,
