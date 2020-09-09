@@ -1,4 +1,4 @@
-__version__ = "1.8.6"
+__version__ = "1.9.0"
 
 # from .eprint import eprint
 # from .trec_text import trec_text
