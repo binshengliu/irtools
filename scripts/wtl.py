@@ -1,58 +1,54 @@
 #!/usr/bin/env python3
+import argparse
+from itertools import chain
+from operator import itemgetter
+from typing import Dict, TextIO, Tuple
+
+import pandas as pd
 from irtools.eval_run import eval_run
 from irtools.wtl import wtl_seq
-import argparse
-from operator import itemgetter
-from itertools import chain
 from numpy import array_split
-import pandas as pd
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description='Sort run files based on measure.')
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Sort run files based on measure.")
 
-    parser.add_argument(
-        '--measure',
-        required=True,
-        help='Measure. For trec ndcg, use ndcg_cut.20; '
-        'for gdeval ndcg, use gdeval@20 ...')
+    parser.add_argument("--threshold", default=0.1, type=float)
 
-    parser.add_argument('--threshold', default=0.1, type=float)
-
-    parser.add_argument('qrel', metavar='QREL', help='qrel')
-
-    parser.add_argument('base')
-
-    parser.add_argument('comparison')
+    parser.add_argument("evals", nargs=2, type=argparse.FileType("r"))
 
     args = parser.parse_args()
 
     return args
 
 
-def main():
+def load_evals(io: TextIO) -> Dict[str, Dict[str, float]]:
+    results: Dict[str, Dict[str, float]] = {}
+    for line in io:
+        metric, qid, score = line.split()
+        results.setdefault(metric, {}).setdefault(qid, float(score))
+    return results
+
+
+def main() -> None:
     args = parse_args()
 
-    _, result1 = eval_run(args.measure, args.qrel, args.base)
-    result1 = {qno: m[args.measure] for qno, m in result1.items()}
+    eval0 = load_evals(args.evals[0])
+    eval1 = load_evals(args.evals[1])
 
-    _, result2 = eval_run(args.measure, args.qrel, args.comparison)
-    result2 = {qno: m[args.measure] for qno, m in result2.items()}
+    common_metrics = eval0.keys() & eval1.keys()
 
-    sorted_by_base = sorted(result1.items(), key=itemgetter(1))
-    names = ['0-100', '0-25', '25-50', '50-75', '75-100']
-    r = []
-    for n, g in zip(names,
-                    chain([sorted_by_base], array_split(sorted_by_base, 4))):
-        values1 = [result1.get(qno, 0.0) for qno, _ in g]
-        values2 = [result2.get(qno, 0.0) for qno, _ in g]
-        win, tie, loss = wtl_seq(values1, values2, args.threshold)
-        r.append((n, win, tie, loss))
+    data = []
+    for metric in common_metrics:
+        qids = eval0[metric].keys()
+        win, tie, loss = wtl_seq(
+            [eval0[metric][x] for x in qids], [eval1[metric][x] for x in qids]
+        )
+        data.append([metric, win, tie, loss])
 
-    df = pd.DataFrame(r, columns=['range', 'win', 'tie', 'loss'])
-    print(df.to_latex(index=False))
+    df = pd.DataFrame(data, columns=["metric", "win", "tie", "loss"])
+    print(df.to_string(index=False))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
