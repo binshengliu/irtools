@@ -95,7 +95,7 @@ def main() -> None:
             x="Qid", y="Value", hue="Sys", style="Sys", data=df, sort=False, ax=ax
         )
         ax.set_ylabel(metric)
-        ax.tick_params(axis="x", rotation=45, labelsize=20)
+        ax.tick_params(axis="x", rotation=90, labelsize=15)
         if args.no_xticks:
             ax.set_xticks([])
 
