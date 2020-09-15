@@ -21,3 +21,14 @@ def tensor_to_numpy(
         return [tensor_to_numpy(x) for x in data]
     else:
         return data
+
+
+def tensor_to_primitive(data: Union[torch.Tensor, Sequence[T], Mapping[Any, T]]) -> Any:
+    if isinstance(data, torch.Tensor):
+        return data.cpu().tolist()
+    elif isinstance(data, abc.Mapping):
+        return {k: tensor_to_primitive(v) for k, v in data.items()}
+    elif isinstance(data, abc.Sequence) and not isinstance(data, (bytes, str)):
+        return [tensor_to_primitive(x) for x in data]
+    else:
+        return data
