@@ -95,7 +95,10 @@ def main() -> None:
     # Sort by metric names
     data = sorted(data)
     last_column = "p-value" if len(args.evals) == 2 else "p-value(anova)"
-    df = pd.DataFrame(data, columns=["Measure", *filenames, last_column])
+    df = pd.DataFrame(
+        data,
+        columns=["Measure", *[f"Sys{i}" for i in range(len(filenames))], last_column],
+    )
     print(df.to_string(index=False, float_format=lambda f: "{:.3f}".format(f)))
 
 
