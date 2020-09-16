@@ -3,7 +3,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 import numpy as np
 from irtools.log import get_logger
@@ -13,14 +13,18 @@ logger = get_logger(__name__)
 
 
 examples = """Parameter names and values should be indicated in the file name in `name=value`
-format and separated by `_` or `-`.
+format and separated by `_`, `-`, or `/`. When the folds are pre-defined, a `fold=?` is
+required in the file path.
 
-Naming examples:
+Examples:
 
-task-epoch=0.eval or task_epoch=0.eval
-task-epoch=1.eval or task_epoch=1.eval
-task-epoch=2.eval or task_epoch=2.eval
-"""
+{name} --files task-epoch=0.eval task-epoch=1.eval task-epoch=2.eval
+
+{name} --train fold=0/train-epoch=0.eval fold=0/train-epoch=1.eval
+{space} --test fold=0/test-epoch=0.eval fold=0/test-epoch=1.eval
+""".format(
+    name=Path(__file__).name, space=" " * len(Path(__file__).name)
+)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -29,12 +33,24 @@ def parse_arguments() -> argparse.Namespace:
         epilog=examples,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument("--train", metavar="FILES", nargs="+")
+    parser.add_argument("--test", metavar="FILES", nargs="+")
+
     parser.add_argument("--files", nargs="+")
+    parser.add_argument("--seed", type=int, default=2)
+
     parser.add_argument(
         "-o", "--output", type=argparse.FileType("w"), default=sys.stdout
     )
-    parser.add_argument("--seed", type=int, default=2)
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if not args.files and not (args.train and args.test):
+        parser.error("Please specify --files or --train/--test")
+
+    if args.train and args.test and args.files:
+        parser.error("--files and --train/--test are mutually exclusive")
+
+    return args
 
 
 def rbp_parse(line: str) -> Tuple[str, str, np.array]:
@@ -73,9 +89,9 @@ def trec_format(metric: str, qid: str, values: np.ndarray) -> str:
     return f"{metric:<22}\t{qid}\t{values[0]}"
 
 
-def main() -> None:
-    args = parse_arguments()
-
+def cv_automatic_folds(
+    args: argparse.Namespace,
+) -> Tuple[Dict[str, Dict[str, np.ndarray]], Any]:
     # params -> metric -> qid -> values
     results: Dict[str, Dict[str, Dict[str, np.array]]] = {}
     qids_set: Set[str] = set()
@@ -83,8 +99,8 @@ def main() -> None:
     format_func = trec_format
     parse_func = trec_parse
     for one in args.files:
-        stem = Path(one).stem
-        match = re.findall(r"([^-_]+=[^-_]+)", stem)
+        stem = one.rsplit(".", maxsplit=1)[0]
+        match = re.findall(r"([^-_/]+=[^-_/]+)", stem)
         params = "-".join(match)
         with open(one, "r") as f:
             for line in f:
@@ -104,12 +120,11 @@ def main() -> None:
                 results[params].setdefault(metric, {})
                 results[params][metric][qid] = value
 
-    metrics = sorted(metrics)  # type: ignore
     qids = sorted(qids_set)
     kfold = KFold(n_splits=5, shuffle=True, random_state=args.seed)
 
     # metric -> qid -> values
-    test_results: Dict[str, Dict[str, np.array]] = {}
+    test_results: Dict[str, Dict[str, np.ndarray]] = {}
     for idx, (train_index, test_index) in enumerate(kfold.split(qids)):
         train_qids = [qids[x] for x in train_index]
         test_qids = [qids[x] for x in test_index]
@@ -127,6 +142,78 @@ def main() -> None:
                 assert qid not in test_results[metric]
                 test_results[metric][qid] = results[best_params][metric][qid]
 
+    return test_results, format_func
+
+
+def load_evals_manual_folds(
+    files: List[str],
+) -> Tuple[Dict[str, Dict[str, Dict[str, Dict[str, np.array]]]], Set[str], Any]:
+    # fold -> params -> metric -> qid -> values
+    results: Dict[str, Dict[str, Dict[str, Dict[str, np.array]]]] = {}
+    metrics = set()
+    format_func = trec_format
+    parse_func = trec_parse
+    for one in files:
+        stem = one.rsplit(".", maxsplit=1)[0]
+        fold_match = re.search(r"[-_/]?fold=([^-_/]+)", stem)
+        assert fold_match is not None
+        fold = fold_match[1]
+
+        match = re.findall(r"([^-_/]+=[^-_/]+)", stem)
+        match = [x for x in match if not x.startswith("fold=")]
+        params = "-".join(match)
+        with open(one, "r") as f:
+            for line in f:
+                if line.startswith("#"):
+                    continue
+
+                if "rbp=" in line:
+                    format_func = rbp_format
+                    parse_func = rbp_parse
+
+                metric, qid, value = parse_func(line)
+                if qid == "all":
+                    continue
+                metrics.add(metric)
+                results.setdefault(fold, {}).setdefault(params, {})
+                results[fold][params].setdefault(metric, {})
+                results[fold][params][metric][qid] = value
+    return results, metrics, format_func
+
+
+def cv_manual_folds(
+    args: argparse.Namespace,
+) -> Tuple[Dict[str, Dict[str, np.ndarray]], Any]:
+    # fold -> params -> metric -> qid -> values
+    train_evals, metrics, format_func = load_evals_manual_folds(args.train)
+    test_evals, _, _ = load_evals_manual_folds(args.test)
+
+    # metric -> qid -> values
+    test_results: Dict[str, Dict[str, np.ndarray]] = {}
+    for fold in train_evals:
+        for metric in metrics:
+            train_results: Dict[str, List[float]] = {}
+            for params in train_evals[fold]:
+                train_results[params] = np.mean(
+                    list(train_evals[fold][params][metric].values())
+                )
+            best_params = max(train_results.items(), key=lambda x: x[1])[0]
+            logger.info(f"Best params of fold {fold} metric {metric}: {best_params}")
+            test_results.setdefault(metric, {})
+            test_results[metric].update(test_evals[fold][best_params][metric])
+
+    return test_results, format_func
+
+
+def main() -> None:
+    args = parse_arguments()
+    if args.files:
+        test_results, format_func = cv_automatic_folds(args)
+    else:
+        test_results, format_func = cv_manual_folds(args)
+
+    metrics = sorted(test_results.keys())
+    qids = sorted(next(iter(test_results.values())).keys())
     for qid in qids:
         for metric in metrics:
             values = test_results[metric][qid]
