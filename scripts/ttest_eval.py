@@ -79,21 +79,22 @@ def main() -> None:
 
     agg = {}
     data = []
-    for metric in common_metrics:
+    for metric in sorted(common_metrics):
         file_results = results[metric]
         union = set.union(*[set(x.keys()) for x in file_results.values()])
         inter = set.intersection(*[set(x.keys()) for x in file_results.values()])
         if union != inter:
-            eprint(f"{metric} discarded ids: {union - inter}")
+            eprint(f"{metric} discarded ids: {sorted(union - inter)}")
         for filename in file_results.keys():
             for id_ in union - inter:
                 file_results[filename].pop(id_, None)
 
-        eprint(f"{metric} common ids: {inter}")
+        eprint(f"{metric} common ids: {sorted(inter)}")
 
         qids = inter
         agg[metric] = {
-            file_: np.mean(list(x.values())) for file_, x in file_results.items()
+            file_: np.mean(list(x.values()), axis=0)
+            for file_, x in file_results.items()
         }
         scores = [
             [qid_scores[qid][0] for qid in qids] for qid_scores in file_results.values()
