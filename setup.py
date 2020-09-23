@@ -39,6 +39,7 @@ setup(
         "scripts/wtl_eval.py",
         "scripts/count_eval.py",
         "scripts/countplot_qrels.py",
+        "scripts/dedup_eval.py",
     ],
     packages=find_packages(exclude=["docs", "tests", "scripts"]),
     include_package_data=True,
