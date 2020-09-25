@@ -43,6 +43,7 @@ def main() -> None:
     sorted_metrics = sorted(dfs[0].columns)
 
     num_metric = len(sorted_metrics)
+    args.height *= num_metric
     fig, axes = plt.subplots(num_metric, 1, figsize=(args.width, args.height))
 
     for metric, ax in zip(sorted_metrics, axes):
@@ -60,7 +61,7 @@ def main() -> None:
             style="Sys",
             data=df,
             ax=ax,
-            palette="colorblind",
+            palette=args.palette,
             alpha=0.7,
             sort=False,
         )

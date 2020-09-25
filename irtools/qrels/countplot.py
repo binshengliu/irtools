@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import re
-from typing import List, Tuple
+from typing import List
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -25,26 +25,27 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_qrels(path: str, session: bool, min_rel: int) -> List[Tuple[str, str, int]]:
+def sid(qid: str) -> str:
+    match = re.match(r"([a-zA-Z0-9]+)[^a-zA-Z0-9]", qid)
+    assert match is not None
+    return match[1]
+
+
+def load_qrels(path: str, session: bool, min_rel: int) -> pd.DataFrame:
     results = []
     with open(path, "r") as f:
         for line in f:
             splits = line.split()
             qid, did, rel = splits[0], splits[2], int(splits[3])
-            if rel < min_rel:
-                continue
-            if session:
-                match = re.match(r"([a-zA-Z0-9]+)[^a-zA-Z0-9]", qid)
-                assert match is not None
-                qid = match[1]
             results.append((qid, did, rel))
-    return results
+    df = pd.DataFrame(data=results, columns=["Qid", "Did", "Rel"])
+    df["Sid"] = df["Qid"].apply(sid)
+    return df
 
 
 def main() -> None:
     args = parse_arguments()
-    qrels = load_qrels(args.qrels, session=args.session, min_rel=args.min_rel)
-    df = pd.DataFrame(data=qrels, columns=["Qid", "Did", "Rel"])
+    df = load_qrels(args.qrels, session=args.session, min_rel=args.min_rel)
 
     seaborn_setup()
 
@@ -56,9 +57,7 @@ def main() -> None:
     fig, axes = plt.subplots(1, 1, figsize=(args.width, args.height))
 
     ax = axes
-    sns.countplot(
-        x="Qid", data=df, ax=ax, palette="deep",  # , hue="Rel"
-    )
+    sns.countplot(x="Rel", data=df, ax=ax, palette="deep")
 
     for p in ax.patches:
         ax.annotate(
