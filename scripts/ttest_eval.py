@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import argparse
 import re
-from collections import OrderedDict
-from typing import Dict, Set, Tuple
+from collections import OrderedDict, abc
+from typing import Any, Dict, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -24,6 +24,7 @@ def parse_args() -> argparse.Namespace:
         type=argparse.FileType("r"),
     )
 
+    parser.add_argument("--precision", type=int, default=4)
     args = parser.parse_args()
     return args
 
@@ -46,6 +47,21 @@ def trec_parse(line: str) -> Tuple[str, str, np.array]:
     splits = line.split()
     metric, qid, value = splits[0], splits[1], np.array([float(splits[2])])
     return metric, qid, value
+
+
+def format_value(x: np.ndarray, precision: int) -> Any:
+    if isinstance(x, float):
+        return f"{x:.{precision}f}"
+    elif isinstance(x, np.ndarray):
+        if x.size == 1:
+            return f"{x[0]:.{precision}f}"
+        elif x.size == 2:
+            return f"{x[0]:.{precision}f} +{x[1]:.{precision}f}"
+        else:
+            assert False, f"Unsupported format {x}"
+    else:
+        assert isinstance(x, abc.Sequence)
+        return [format_value(cell, precision) for cell in x]
 
 
 def main() -> None:
@@ -104,7 +120,8 @@ def main() -> None:
         else:
             _, pvalue = stats.f_oneway(*scores)
 
-        data.append((metric, *[np.round(agg[metric][x], 4) for x in filenames], pvalue))
+        str_values = format_value([agg[metric][x] for x in filenames], args.precision)
+        data.append((metric, *str_values, format_value(pvalue, args.precision)))
 
     # Sort by metric names
     data = sorted(data)
@@ -113,7 +130,7 @@ def main() -> None:
         data,
         columns=["Measure", *[f"Sys{i}" for i in range(len(filenames))], last_column],
     )
-    print(df.to_string(index=False, float_format=lambda f: "{:.3f}".format(f)))
+    print(df.to_string(index=False))
 
 
 if __name__ == "__main__":
