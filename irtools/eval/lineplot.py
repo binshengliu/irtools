@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 import argparse
-from collections import OrderedDict
-from typing import Dict, List
+from typing import List
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import seaborn as sns
-from irtools.evalfile import TrecEval
-from irtools.seaborn_setup import seaborn_setup
 
 from .common import prepare_eval
 
