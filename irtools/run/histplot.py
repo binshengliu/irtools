@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 import argparse
-from collections import OrderedDict
-from typing import Dict, List
+from typing import List
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import seaborn as sns
-from irtools.evalfile import TrecEval
 from irtools.seaborn_setup import seaborn_setup
 
 
@@ -40,39 +37,50 @@ def load_qrels(path: str) -> pd.DataFrame:
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="")
-    parser.add_argument("run")
+    parser.add_argument("run", nargs="+")
     parser.add_argument("--save")
+    parser.add_argument("--names", type=comma_list)
     parser.add_argument("--width", type=int, default=30)
     parser.add_argument("--height", type=int, default=15)
     parser.add_argument("--palette", default="deep")
     parser.add_argument("--qrels")
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if not args.names:
+        args.names = [f"Sys{i}" for i in range(len(args.run))]
+    return args
 
 
 def main() -> None:
     args = parse_arguments()
     seaborn_setup()
-    df = load_run(args.run)
+    dfs = [load_run(x) for x in args.run]
     if args.qrels:
         qrels = load_qrels(args.qrels)
-        df = df.merge(qrels, how="left").fillna(0)
+        dfs = [x.merge(qrels, how="left").fillna(0) for x in dfs]
     else:
-        df.loc[:, "Rel"] = "All"
+        for df in dfs:
+            df.loc[:, "Rel"] = "All"
 
     fig, axes = plt.subplots(1, 1, figsize=(args.width, args.height))
 
     ax = axes
-    sns.histplot(
-        x="Score",
-        data=df,
-        hue="Rel",
-        palette=args.palette,
-        ax=ax,
-        kde=True,
-        element="step",
-        stat="density",
-    )
+    uniq_rel = sorted(dfs[0]["Rel"].unique())
+    df = pd.concat(dfs, names=["Sys"], keys=args.names)
+    for rel in uniq_rel:
+        sns.histplot(
+            x="Score",
+            data=df[df["Rel"] == rel],
+            hue="Sys",
+            # color=color,
+            palette=args.palette,
+            ax=ax,
+            kde=False,
+            element="step",
+            stat="density",
+            line_kws={"lw": 2},
+        )
 
     if isinstance(args.save, str):
         fig.tight_layout()
