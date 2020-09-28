@@ -3,13 +3,50 @@ import argparse
 from typing import List
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from irtools.seaborn_setup import seaborn_setup
+from scipy.optimize import curve_fit
 
 
 def comma_list(x: str) -> List[str]:
     return x.split(",")
+
+
+def exp_func(x: np.ndarray, a: float, b: float) -> np.ndarray:
+    value = a * np.exp(-b * x)
+    return value
+
+
+def exp_fit(scores: np.ndarray) -> np.ndarray:
+    data, bins = np.histogram(scores, bins="auto", density=True)
+
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+    popt, pcov = curve_fit(exp_func, bin_centers, data, (1, 1))
+    print(popt)
+    print(pcov)
+
+    X = bin_centers
+    Y = exp_func(X, *popt)
+    return X, Y, popt[1]
+
+
+def norm_func(x: np.ndarray, B: float, mu: float, sigma: float) -> np.ndarray:
+    return B * np.exp(-1.0 * (x - mu) ** 2 / (2 * sigma ** 2))
+
+
+def norm_fit(scores: np.ndarray) -> np.ndarray:
+    data, bins = np.histogram(scores, bins="auto", density=True)
+
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+    popt, pcov = curve_fit(norm_func, bin_centers, data, (1, 1, 1))
+    print(popt)
+    print(pcov)
+
+    X = bin_centers
+    Y = norm_func(X, *popt)
+    return X, Y, popt[1], popt[2]
 
 
 def load_run(path: str) -> pd.DataFrame:
@@ -65,22 +102,52 @@ def main() -> None:
 
     fig, axes = plt.subplots(1, 1, figsize=(args.width, args.height))
 
+    plt.rcParams.update({"text.usetex": True})
+
     ax = axes
     uniq_rel = sorted(dfs[0]["Rel"].unique())
-    df = pd.concat(dfs, names=["Sys"], keys=args.names)
+    df = pd.concat(dfs, names=["Sys"], keys=args.names).reset_index()
+    palette = sns.color_palette(args.palette)
     for rel in uniq_rel:
         sns.histplot(
             x="Score",
             data=df[df["Rel"] == rel],
             hue="Sys",
-            # color=color,
-            palette=args.palette,
+            palette=palette[: len(args.names)],
             ax=ax,
             kde=False,
             element="step",
             stat="density",
-            line_kws={"lw": 2},
+            common_norm=False,
+            # alpha=0.9,
         )
+        df_fit_all = []
+        for sys in args.names:
+            mask = (df["Rel"] == rel) & (df["Sys"] == sys)
+            scores = df[mask].loc[:, "Score"].to_numpy()
+            if rel == 1:
+                X, Y, mu, sigma = norm_fit(scores)
+                df_fit = pd.DataFrame(data={"Score": X, "density": Y})
+                df_fit["Sys"] = f"{sys} Relevant: $\\mu={mu:.2f},\\sigma={sigma:.2f}$"
+                print(f"{sys}: mu: {mu:f}, sigma: {sigma:f}")
+            else:
+                X, Y, lambda_ = exp_fit(scores)
+                df_fit = pd.DataFrame(data={"Score": X, "density": Y})
+                df_fit["Sys"] = f"{sys} Non-relevant: $\\lambda={lambda_:.1f}$"
+                print(f"{sys}: lambda: {lambda_:f}")
+            df_fit_all.append(df_fit)
+        df_fit = pd.concat(df_fit_all)
+        sns.lineplot(
+            data=df_fit,
+            x="Score",
+            y="density",
+            hue="Sys",
+            palette=palette[: len(args.names)],
+            ax=ax,
+            alpha=0.7,
+            linewidth=5,
+        )
+        palette = palette[len(args.names) :]
 
     if isinstance(args.save, str):
         fig.tight_layout()
