@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import argparse
-from typing import List
+from typing import List, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,7 +19,7 @@ def exp_func(x: np.ndarray, a: float, b: float) -> np.ndarray:
     return value
 
 
-def exp_fit(scores: np.ndarray, bins: int) -> np.ndarray:
+def exp_fit(scores: np.ndarray, bins: Union[str, int]) -> np.ndarray:
     data, bin_edges = np.histogram(scores, bins=bins, density=True)
 
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
@@ -36,7 +36,7 @@ def norm_func(x: np.ndarray, B: float, mu: float, sigma: float) -> np.ndarray:
     return B * np.exp(-1.0 * (x - mu) ** 2 / (2 * sigma ** 2))
 
 
-def norm_fit(scores: np.ndarray, bins: int) -> np.ndarray:
+def norm_fit(scores: np.ndarray, bins: Union[str, int]) -> np.ndarray:
     data, bin_edges = np.histogram(scores, bins=bins, density=True)
 
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
@@ -72,6 +72,13 @@ def load_qrels(path: str) -> pd.DataFrame:
     return df
 
 
+def bins_type(bins: str) -> Union[str, int]:
+    if bins == "auto":
+        return bins
+    else:
+        return int(bins)
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("run", nargs="+")
@@ -81,12 +88,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=15)
     parser.add_argument("--palette", default="deep")
     parser.add_argument("--qrels")
-    parser.add_argument(
-        "--bins",
-        type=int,
-        defaut=100,
-        help="see `numpy.histogram` for possible values.",
-    )
+    parser.add_argument("--bins", type=bins_type, default="auto")
 
     args = parser.parse_args()
 
@@ -108,7 +110,7 @@ def main() -> None:
 
     fig, axes = plt.subplots(1, 1, figsize=(args.width, args.height))
 
-    plt.rcParams.update({"text.usetex": True})
+    # plt.rcParams.update({"text.usetex": True})
 
     ax = axes
     uniq_rel = sorted(dfs[0]["Rel"].unique())
