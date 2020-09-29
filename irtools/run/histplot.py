@@ -19,10 +19,10 @@ def exp_func(x: np.ndarray, a: float, b: float) -> np.ndarray:
     return value
 
 
-def exp_fit(scores: np.ndarray) -> np.ndarray:
-    data, bins = np.histogram(scores, bins="auto", density=True)
+def exp_fit(scores: np.ndarray, bins: int) -> np.ndarray:
+    data, bin_edges = np.histogram(scores, bins=bins, density=True)
 
-    bin_centers = (bins[:-1] + bins[1:]) / 2
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     popt, pcov = curve_fit(exp_func, bin_centers, data, (1, 1))
     print(popt)
     print(pcov)
@@ -36,10 +36,10 @@ def norm_func(x: np.ndarray, B: float, mu: float, sigma: float) -> np.ndarray:
     return B * np.exp(-1.0 * (x - mu) ** 2 / (2 * sigma ** 2))
 
 
-def norm_fit(scores: np.ndarray) -> np.ndarray:
-    data, bins = np.histogram(scores, bins="auto", density=True)
+def norm_fit(scores: np.ndarray, bins: int) -> np.ndarray:
+    data, bin_edges = np.histogram(scores, bins=bins, density=True)
 
-    bin_centers = (bins[:-1] + bins[1:]) / 2
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     popt, pcov = curve_fit(norm_func, bin_centers, data, (1, 1, 1))
     print(popt)
     print(pcov)
@@ -81,6 +81,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=15)
     parser.add_argument("--palette", default="deep")
     parser.add_argument("--qrels")
+    parser.add_argument(
+        "--bins",
+        type=int,
+        defaut=100,
+        help="see `numpy.histogram` for possible values.",
+    )
 
     args = parser.parse_args()
 
@@ -119,6 +125,7 @@ def main() -> None:
             element="step",
             stat="density",
             common_norm=False,
+            bins=args.bins,
             # alpha=0.9,
         )
         df_fit_all = []
@@ -126,14 +133,14 @@ def main() -> None:
             mask = (df["Rel"] == rel) & (df["Sys"] == sys)
             scores = df[mask].loc[:, "Score"].to_numpy()
             if rel == 1:
-                X, Y, mu, sigma = norm_fit(scores)
+                X, Y, mu, sigma = norm_fit(scores, args.bins)
                 df_fit = pd.DataFrame(data={"Score": X, "density": Y})
                 df_fit["Sys"] = f"{sys} Relevant: $\\mu={mu:.2f},\\sigma={sigma:.2f}$"
                 print(f"{sys}: mu: {mu:f}, sigma: {sigma:f}")
             else:
-                X, Y, lambda_ = exp_fit(scores)
+                X, Y, lambda_ = exp_fit(scores, args.bins)
                 df_fit = pd.DataFrame(data={"Score": X, "density": Y})
-                df_fit["Sys"] = f"{sys} Non-relevant: $\\lambda={lambda_:.1f}$"
+                df_fit["Sys"] = f"{sys} Non-relevant: $\\lambda={lambda_:.2f}$"
                 print(f"{sys}: lambda: {lambda_:f}")
             df_fit_all.append(df_fit)
         df_fit = pd.concat(df_fit_all)
@@ -148,6 +155,7 @@ def main() -> None:
             linewidth=5,
         )
         palette = palette[len(args.names) :]
+    ax.legend()
 
     if isinstance(args.save, str):
         fig.tight_layout()
