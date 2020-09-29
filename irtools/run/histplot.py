@@ -110,8 +110,6 @@ def main() -> None:
 
     fig, axes = plt.subplots(1, 1, figsize=(args.width, args.height))
 
-    # plt.rcParams.update({"text.usetex": True})
-
     ax = axes
     uniq_rel = sorted(dfs[0]["Rel"].unique())
     df = pd.concat(dfs, names=["Sys"], keys=args.names).reset_index()
@@ -137,12 +135,12 @@ def main() -> None:
             if rel == 1:
                 X, Y, mu, sigma = norm_fit(scores, args.bins)
                 df_fit = pd.DataFrame(data={"Score": X, "density": Y})
-                df_fit["Sys"] = f"{sys} Relevant: $\\mu={mu:.2f},\\sigma={sigma:.2f}$"
+                df_fit["Sys"] = fr"{sys} Relevant: $\mu$={mu:.2f},$\sigma$={sigma:.2f}"
                 print(f"{sys}: mu: {mu:f}, sigma: {sigma:f}")
             else:
                 X, Y, lambda_ = exp_fit(scores, args.bins)
                 df_fit = pd.DataFrame(data={"Score": X, "density": Y})
-                df_fit["Sys"] = f"{sys} Non-relevant: $\\lambda={lambda_:.2f}$"
+                df_fit["Sys"] = fr"{sys} Non-relevant: $\lambda$={lambda_:.2f}"
                 print(f"{sys}: lambda: {lambda_:f}")
             df_fit_all.append(df_fit)
         df_fit = pd.concat(df_fit_all)
