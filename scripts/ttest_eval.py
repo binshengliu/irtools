@@ -105,9 +105,7 @@ def main() -> None:
             for id_ in union - inter:
                 file_results[filename].pop(id_, None)
 
-        eprint(f"{metric} common ids: {sorted(inter)}")
-
-        qids = inter
+        qids = sorted(inter)
         agg[metric] = {
             file_: np.mean(list(x.values()), axis=0)
             for file_, x in file_results.items()
