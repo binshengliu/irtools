@@ -5,6 +5,7 @@ from typing import List
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+from more_itertools import always_iterable
 
 from .common import prepare_eval
 
@@ -42,30 +43,47 @@ def main() -> None:
     args.height *= num_metric
     fig, axes = plt.subplots(num_metric, 1, figsize=(args.width, args.height))
 
-    for metric, ax in zip(sorted_metrics, axes):
+    palette = sns.color_palette(args.palette)
+    for metric, ax in zip(sorted_metrics, always_iterable(axes)):
         if args.sort:
             dfs[0] = dfs[0].sort_values(metric)
             dfs = [x.loc[dfs[0].index, :] for x in dfs]
 
-        df = pd.concat(dfs, names=["Sys"], keys=args.names)
+        to_plot = dfs[0]
+        to_plot.index = to_plot.index.set_names("Qid")
+        to_plot = to_plot.reset_index()
+        to_plot.loc[:, "Sys"] = args.names[0]
+        sns.lineplot(
+            x="Qid",
+            y=metric,
+            hue="Sys",
+            style="Sys",
+            data=to_plot,
+            ax=ax,
+            palette=palette[:1],
+            alpha=0.7,
+            sort=False,
+        )
+        df = pd.concat(dfs[1:], names=["Sys"], keys=args.names[1:])
         df.index = df.index.set_names(["Sys", "Qid"])
         df = df.reset_index()
-        sns.lineplot(
+        sns.scatterplot(
             x="Qid",
             y=metric,
             hue="Sys",
             style="Sys",
             data=df,
             ax=ax,
-            palette=args.palette,
+            palette=palette[1:][: len(args.names[1:])],
             alpha=0.7,
-            sort=False,
         )
         for tick in ax.get_xticklabels():
             tick.set_rotation(45)
             tick.set_ha("right")
         if args.no_xticks:
             ax.set_xticks([])
+        ax.set_ylabel(metric.replace("_cut_", "@"))
+        ax.legend(framealpha=0.7)
 
     if isinstance(args.save, str):
         fig.tight_layout()
