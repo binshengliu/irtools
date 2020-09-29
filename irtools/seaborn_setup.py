@@ -41,6 +41,7 @@ def seaborn_setup() -> None:
         "lines.solid_capstyle": "butt",
         "savefig.edgecolor": "#000000",
         "savefig.facecolor": "#ffffff",
+        "mathtext.default": "regular",
     }
 
     plt.rcParams.update(fmt)
