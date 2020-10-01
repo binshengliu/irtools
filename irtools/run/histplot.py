@@ -9,6 +9,8 @@ import seaborn as sns
 from irtools.seaborn_setup import seaborn_setup
 from scipy.optimize import curve_fit
 
+# from scipy.special import softmax
+
 
 def comma_list(x: str) -> List[str]:
     return x.split(",")
@@ -58,16 +60,23 @@ def load_run(path: str) -> pd.DataFrame:
             score = float(splits[4])
             data.append((qid, did, score))
     df = pd.DataFrame(data=data, columns=["Qid", "Did", "Score"])
+    # df.loc[:, "Score"] = df.groupby("Qid")["Score"].apply(lambda x: softmax(x))
+    # df.loc[:, "Score"] = df.groupby("Qid")["Score"].apply(
+    #     lambda x: (x - x.min()) / (x.max() - x.min())
+    # )
     return df
 
 
-def load_qrels(path: str) -> pd.DataFrame:
+def load_qrels(path: str, min_rel: int) -> pd.DataFrame:
     data = []
     with open(path, "r") as f:
         for line in f:
             splits = line.split()
             qid, _, did, rel = splits[:4]
-            data.append((qid, did, int(rel)))
+            if int(rel) < min_rel:
+                data.append((qid, did, 0))
+            else:
+                data.append((qid, did, 1))
     df = pd.DataFrame(data=data, columns=["Qid", "Did", "Rel"])
     return df
 
@@ -89,6 +98,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--palette", default="deep")
     parser.add_argument("--qrels")
     parser.add_argument("--bins", type=bins_type, default="auto")
+    parser.add_argument("--min-rel", type=int, default=1)
 
     args = parser.parse_args()
 
@@ -102,7 +112,7 @@ def main() -> None:
     seaborn_setup()
     dfs = [load_run(x) for x in args.run]
     if args.qrels:
-        qrels = load_qrels(args.qrels)
+        qrels = load_qrels(args.qrels, args.min_rel)
         dfs = [x.merge(qrels, how="left").fillna(0) for x in dfs]
     else:
         for df in dfs:
@@ -112,6 +122,7 @@ def main() -> None:
 
     ax = axes
     uniq_rel = sorted(dfs[0]["Rel"].unique())
+    assert uniq_rel == [0, 1]
     df = pd.concat(dfs, names=["Sys"], keys=args.names).reset_index()
     palette = sns.color_palette(args.palette)
     for rel in uniq_rel:
