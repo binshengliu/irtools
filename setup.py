@@ -12,7 +12,6 @@ setup(
         "irtools/mypyrouge.py",
         "irtools/indri.py",
         "scripts/trec_eval.py",
-        "scripts/wtl.py",
         "scripts/cleanit.py",
         "scripts/tokit.py",
         "scripts/spacit.py",

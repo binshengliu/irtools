@@ -28,4 +28,6 @@ def prepare_eval(args: argparse.Namespace) -> List[pd.DataFrame]:
             dfs[0] = dfs[0].sample(frac=args.sample, random_state=args.seed)
         dfs = [x.loc[dfs[0].index] for x in dfs]
 
+    sorted_metrics = sorted(dfs[0].columns)
+    dfs = [df[sorted_metrics] for df in dfs]
     return dfs
