@@ -5,6 +5,7 @@ from typing import List
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+from more_itertools import always_iterable
 
 from .common import prepare_eval
 
@@ -49,30 +50,52 @@ def main() -> None:
             x[metric] = x[metric] - base[metric]
 
     palette = sns.color_palette(args.palette)
-    for metric, ax in zip(sorted_metrics, axes):
-        if args.sort:
-            dfs[0] = dfs[0].sort_values(metric)
-            dfs = [x.loc[dfs[0].index, :] for x in dfs]
-
+    for metric, ax in zip(sorted_metrics, always_iterable(axes)):
         df = pd.concat(
             dfs, names=["Sys"], keys=[f"{x}-{args.names[0]}" for x in args.names[1:]]
         )
         df.index = df.index.set_names(["Sys", "Qid"])
         df = df.reset_index()
-        sns.scatterplot(
+        # df = df[df[metric] != 0]
+        df.loc[:, "Change"] = "Good"
+        df.loc[df[metric] < 0, "Change"] = "Bad"
+        if args.sort:
+            df = df.sort_values(metric, ascending=args.sort == "ascending")
+        # df.loc[df[metric] < 0, metric] = -df[metric]
+
+        # dfgood = df.loc[df["Change"] == "Good"]
+        # dfgood = (
+        #     dfgood.sort_values(metric, ascending=False)
+        #     .reset_index(drop=True)
+        #     .reset_index()
+        # )
+        # dfbad = df.loc[df["Change"] == "Bad"]
+        # dfbad = (
+        #     dfbad.sort_values(metric, ascending=False)
+        #     .reset_index(drop=True)
+        #     .reset_index()
+        # )
+        # df = pd.concat([dfgood, dfbad])
+        # breakpoint()
+        sns.lineplot(
             x="Qid",
             y=metric,
-            hue="Sys",
-            style="Sys",
+            # hue="Change",
+            # style="Sys",
             data=df,
             ax=ax,
             palette=args.palette,
             alpha=0.7,
+            sort=False,
         )
-        for tick in ax.get_xticklabels():
-            tick.set_rotation(45)
-            tick.set_ha("right")
+        ax.fill_between(df["Qid"], df[metric], alpha=0.5)
+        # for tick in ax.get_xticklabels():
+        #     tick.set_rotation(45)
+        #     tick.set_ha("right")
+        ax.set_xticks([])
         ax.axhline(0, ls="--", color=palette[-1])
+        label_metric = metric.replace("_cut_", "@").upper()
+        ax.set_ylabel(fr"$\Delta${label_metric}")
 
     if isinstance(args.save, str):
         fig.tight_layout()
