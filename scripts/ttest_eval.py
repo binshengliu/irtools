@@ -37,6 +37,9 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if not args.names:
         args.names = [f"Sys{i}" for i in range(len(args.evals))]
+
+    if len(args.names) != len(args.evals):
+        parser.error("--names and --evals should match.")
     return args
 
 
@@ -122,7 +125,7 @@ def main() -> None:
             scores.extend([qid_scores[qid][0] for qid in qids])
             groups.extend([name for qid in qids])
         print(f"# {metric}")
-        pprint(dict(zip(args.names, means)))
+        pprint(list(zip(args.names, means)))
         cmp_result = MultiComparison(scores, groups, np.array(args.names)).allpairtest(
             stats.ttest_rel, method=args.correction
         )[0]
