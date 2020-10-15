@@ -2,12 +2,19 @@
 import argparse
 import re
 from collections import OrderedDict, abc
-from typing import Any, Dict, Set, Tuple
+from io import StringIO
+from pprint import pprint
+from typing import Any, Dict, List, Set, Tuple
 
 import numpy as np
 import pandas as pd
 from irtools.eprint import eprint
 from scipy import stats
+from statsmodels.stats.multicomp import MultiComparison
+
+
+def comma_list(x: str) -> List[str]:
+    return x.split(",")
 
 
 def parse_args() -> argparse.Namespace:
@@ -25,7 +32,11 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument("--precision", type=int, default=4)
+    parser.add_argument("--names", type=comma_list)
+    parser.add_argument("--correction", default="bonf", choices=["bonf", "holm"])
     args = parser.parse_args()
+    if not args.names:
+        args.names = [f"Sys{i}" for i in range(len(args.evals))]
     return args
 
 
@@ -67,7 +78,6 @@ def format_value(x: np.ndarray, precision: int) -> Any:
 def main() -> None:
     args = parse_args()
 
-    filenames = [x.name for x in args.evals]
     results: Dict[str, Dict[str, Dict[str, np.ndarray]]] = OrderedDict()
     file_metrics: Dict[str, Set[str]] = OrderedDict()
     parse_func = trec_parse
@@ -93,8 +103,6 @@ def main() -> None:
         if diff:
             eprint(f"{filename}: disregard {sorted(diff)}")
 
-    agg = {}
-    data = []
     for metric in sorted(common_metrics):
         file_results = results[metric]
         union = set.union(*[set(x.keys()) for x in file_results.values()])
@@ -106,29 +114,30 @@ def main() -> None:
                 file_results[filename].pop(id_, None)
 
         qids = sorted(inter)
-        agg[metric] = {
-            file_: np.mean(list(x.values()), axis=0)
-            for file_, x in file_results.items()
-        }
-        scores = [
-            [qid_scores[qid][0] for qid in qids] for qid_scores in file_results.values()
-        ]
-        if len(args.evals) == 2:
-            _, pvalue = stats.ttest_rel(*scores)
-        else:
-            _, pvalue = stats.f_oneway(*scores)
+        scores = []
+        groups = []
+        means = []
+        for name, qid_scores in zip(args.names, file_results.values()):
+            means.append(np.mean([qid_scores[qid][0] for qid in qids]))
+            scores.extend([qid_scores[qid][0] for qid in qids])
+            groups.extend([name for qid in qids])
+        print(f"# {metric}")
+        pprint(dict(zip(args.names, means)))
+        cmp_result = MultiComparison(scores, groups, np.array(args.names)).allpairtest(
+            stats.ttest_rel, method=args.correction
+        )[0]
 
-        str_values = format_value([agg[metric][x] for x in filenames], args.precision)
-        data.append((metric, *str_values, format_value(pvalue, args.precision)))
-
-    # Sort by metric names
-    data = sorted(data)
-    last_column = "p-value" if len(args.evals) == 2 else "p-value(anova)"
-    df = pd.DataFrame(
-        data,
-        columns=["Measure", *[f"Sys{i}" for i in range(len(filenames))], last_column],
-    )
-    print(df.to_string(index=False))
+        results_as_csv = cmp_result.as_csv().split("\n")[3:]
+        assert "pval_corr" in results_as_csv[0]
+        df = pd.read_csv(StringIO("\n".join(results_as_csv)), header=0, index_col=False)
+        row_order = df.iloc[:, 0].unique()
+        column_order = df.iloc[:, 1].unique()
+        df = df.pivot(index=df.columns[0], columns=df.columns[1], values="pval_corr")
+        df = df.loc[row_order, column_order]
+        df.index = [x.strip() for x in df.index]
+        df.columns = [x.strip() for x in df.columns]
+        print(df.to_string())
+        print()
 
 
 if __name__ == "__main__":
