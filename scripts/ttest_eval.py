@@ -3,12 +3,13 @@ import argparse
 import re
 from collections import OrderedDict, abc
 from io import StringIO
+from itertools import combinations
 from pprint import pprint
 from typing import Any, Dict, List, Set, Tuple
 
 import numpy as np
 import pandas as pd
-from irtools.eprint import eprint
+import statsmodels.stats.api as sms
 from scipy import stats
 from statsmodels.stats.multicomp import MultiComparison
 
@@ -34,6 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--precision", type=int, default=4)
     parser.add_argument("--names", type=comma_list)
     parser.add_argument("--correction", default="bonf", choices=["bonf", "holm"])
+    parser.add_argument("--alpha", type=float, default=0.05)
     args = parser.parse_args()
     if not args.names:
         args.names = [f"Sys{i}" for i in range(len(args.evals))]
@@ -100,18 +102,18 @@ def main() -> None:
             results[metric][eval_.name][qid] = value
 
     common_metrics = set.intersection(*list(file_metrics.values()))
-    eprint(f"Common metrics: {sorted(common_metrics)}")
+    print(f"Common metrics: {sorted(common_metrics)}")
     for filename, metrics in file_metrics.items():
         diff = metrics - common_metrics
         if diff:
-            eprint(f"{filename}: disregard {sorted(diff)}")
+            print(f"{filename}: disregard {sorted(diff)}")
 
     for metric in sorted(common_metrics):
         file_results = results[metric]
         union = set.union(*[set(x.keys()) for x in file_results.values()])
         inter = set.intersection(*[set(x.keys()) for x in file_results.values()])
         if union != inter:
-            eprint(f"{metric} discarded ids: {sorted(union - inter)}")
+            print(f"{metric} discarded ids: {sorted(union - inter)}")
         for filename in file_results.keys():
             for id_ in union - inter:
                 file_results[filename].pop(id_, None)
@@ -120,8 +122,12 @@ def main() -> None:
         scores = []
         groups = []
         means = []
+        grouped_values = []
         for name, qid_scores in zip(args.names, file_results.values()):
-            means.append(np.mean([qid_scores[qid][0] for qid in qids]))
+            grouped_values.append((name, [qid_scores[qid][0] for qid in qids]))
+            means.append(
+                np.array([qid_scores[qid] for qid in qids]).mean(axis=0).tolist()
+            )
             scores.extend([qid_scores[qid][0] for qid in qids])
             groups.extend([name for qid in qids])
         print(f"# {metric}")
@@ -139,7 +145,16 @@ def main() -> None:
         df = df.loc[row_order, column_order]
         df.index = [x.strip() for x in df.index]
         df.columns = [x.strip() for x in df.columns]
+        print(f"## ttest with {args.correction} correction")
         print(df.to_string())
+
+        df_conf = df.copy()
+        for (name0, group0), (name1, group1) in combinations(grouped_values, 2):
+            group_diff = np.array(group1) - np.array(group0)
+            value = sms.DescrStatsW(group_diff).tconfint_mean(alpha=args.alpha)
+            df_conf.loc[name0, name1] = f"[{value[0]:.4f},{value[1]:.4f}]"
+        print(f"## {1-args.alpha:.0%} confidence interval")
+        print(df_conf.to_string())
         print()
 
 
