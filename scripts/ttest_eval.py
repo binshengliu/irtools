@@ -80,6 +80,17 @@ def format_value(x: np.ndarray, precision: int) -> Any:
         return [format_value(cell, precision) for cell in x]
 
 
+def interval2str(interval: np.array, precision: int) -> str:
+    mean = np.mean(interval)
+    diff = interval[1] - mean
+    return f"{mean:.{precision}f}±{diff:.{precision}f}"
+
+
+def confint_mean(data: np.array, alpha: float, precision: int) -> List[str]:
+    cimean = np.array(sms.DescrStatsW(data).tconfint_mean(alpha=alpha))
+    return [interval2str(x, precision) for x in cimean.T]
+
+
 def main() -> None:
     args = parse_args()
 
@@ -126,11 +137,13 @@ def main() -> None:
         for name, qid_scores in zip(args.names, file_results.values()):
             grouped_values.append((name, [qid_scores[qid][0] for qid in qids]))
             means.append(
-                np.array([qid_scores[qid] for qid in qids]).mean(axis=0).tolist()
+                confint_mean(
+                    [qid_scores[qid] for qid in qids], args.alpha, args.precision
+                )
             )
             scores.extend([qid_scores[qid][0] for qid in qids])
             groups.extend([name for qid in qids])
-        print(f"# {metric}")
+        print(f"# {metric} {1-args.alpha:.0%} confidence interval")
         pprint(list(zip(args.names, means)))
         cmp_result = MultiComparison(scores, groups, np.array(args.names)).allpairtest(
             stats.ttest_rel, method=args.correction
@@ -152,8 +165,10 @@ def main() -> None:
         for (name0, group0), (name1, group1) in combinations(grouped_values, 2):
             group_diff = np.array(group1) - np.array(group0)
             value = sms.DescrStatsW(group_diff).tconfint_mean(alpha=args.alpha)
-            df_conf.loc[name0, name1] = f"[{value[0]:.4f},{value[1]:.4f}]"
-        print(f"## {1-args.alpha:.0%} confidence interval")
+            df_conf.loc[
+                name0, name1
+            ] = f"[{value[0]:.{args.precision}f},{value[1]:.{args.precision}f}]"
+        print(f"## {1-args.alpha:.0%} confidence interval of the difference")
         print(df_conf.to_string())
         print()
 
