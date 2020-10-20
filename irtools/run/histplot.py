@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from itertools import product
 from typing import List, Union
 
 import matplotlib.pyplot as plt
@@ -60,23 +61,22 @@ def load_run(path: str) -> pd.DataFrame:
             score = float(splits[4])
             data.append((qid, did, score))
     df = pd.DataFrame(data=data, columns=["Qid", "Did", "Score"])
-    # df.loc[:, "Score"] = df.groupby("Qid")["Score"].apply(lambda x: softmax(x))
-    # df.loc[:, "Score"] = df.groupby("Qid")["Score"].apply(
-    #     lambda x: (x - x.min()) / (x.max() - x.min())
-    # )
     return df
 
 
-def load_qrels(path: str, min_rel: int) -> pd.DataFrame:
+def load_qrels(path: str, binarize: bool, min_rel: int) -> pd.DataFrame:
     data = []
     with open(path, "r") as f:
         for line in f:
             splits = line.split()
             qid, _, did, rel = splits[:4]
-            if int(rel) < min_rel:
-                data.append((qid, did, 0))
+            if binarize:
+                if int(rel) < min_rel:
+                    data.append((qid, did, 0))
+                else:
+                    data.append((qid, did, 1))
             else:
-                data.append((qid, did, 1))
+                data.append((qid, did, int(rel)))
     df = pd.DataFrame(data=data, columns=["Qid", "Did", "Rel"])
     return df
 
@@ -93,12 +93,13 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("run", nargs="+")
     parser.add_argument("--save")
     parser.add_argument("--names", type=comma_list)
-    parser.add_argument("--width", type=int, default=30)
-    parser.add_argument("--height", type=int, default=15)
+    parser.add_argument("--width", type=int, default=20)
+    parser.add_argument("--height", type=int, default=10)
     parser.add_argument("--palette", default="deep")
     parser.add_argument("--qrels")
     parser.add_argument("--bins", type=bins_type, default="auto")
     parser.add_argument("--min-rel", type=int, default=1)
+    parser.add_argument("--binarize", action="store_true")
 
     args = parser.parse_args()
 
@@ -112,7 +113,7 @@ def main() -> None:
     seaborn_setup()
     dfs = [load_run(x) for x in args.run]
     if args.qrels:
-        qrels = load_qrels(args.qrels, args.min_rel)
+        qrels = load_qrels(args.qrels, args.binarize, args.min_rel)
         dfs = [x.merge(qrels, how="left").fillna(0) for x in dfs]
     else:
         for df in dfs:
@@ -121,53 +122,33 @@ def main() -> None:
     fig, axes = plt.subplots(1, 1, figsize=(args.width, args.height))
 
     ax = axes
-    uniq_rel = sorted(dfs[0]["Rel"].unique())
-    assert uniq_rel == [0, 1]
     df = pd.concat(dfs, names=["Sys"], keys=args.names).reset_index()
-    palette = sns.color_palette(args.palette)
-    for rel in uniq_rel:
-        sns.histplot(
-            x="Score",
-            data=df[df["Rel"] == rel],
-            hue="Sys",
-            palette=palette[: len(args.names)],
-            ax=ax,
-            kde=False,
-            element="step",
-            stat="density",
-            common_norm=False,
-            bins=args.bins,
-            # alpha=0.9,
-        )
-        df_fit_all = []
-        for sys in args.names:
-            mask = (df["Rel"] == rel) & (df["Sys"] == sys)
-            scores = df[mask].loc[:, "Score"].to_numpy()
-            if rel == 1:
-                X, Y, mu, sigma = norm_fit(scores, args.bins)
-                df_fit = pd.DataFrame(data={"Score": X, "density": Y})
-                df_fit["Sys"] = fr"{sys} Relevant: $\mu$={mu:.2f},$\sigma$={sigma:.2f}"
-                print(f"{sys}: mu: {mu:f}, sigma: {sigma:f}")
-            else:
-                X, Y, lambda_ = exp_fit(scores, args.bins)
-                df_fit = pd.DataFrame(data={"Score": X, "density": Y})
-                df_fit["Sys"] = fr"{sys} Non-relevant: $\lambda$={lambda_:.2f}"
-                print(f"{sys}: lambda: {lambda_:f}")
-            df_fit_all.append(df_fit)
-        df_fit = pd.concat(df_fit_all)
-        sns.lineplot(
-            data=df_fit,
-            x="Score",
-            y="density",
-            hue="Sys",
-            palette=palette[: len(args.names)],
-            ax=ax,
-            alpha=0.7,
-            linewidth=5,
-        )
-        palette = palette[len(args.names) :]
-    ax.legend()
-
+    df.loc[:, "Rel"] = df.loc[:, "Rel"].astype(int)
+    uniq_rel = sorted(df["Rel"].unique())
+    if uniq_rel == [0, 1]:
+        df.loc[df["Rel"] == 1, "Rel"] = "Relevant"
+        df.loc[df["Rel"] == 0, "Rel"] = "Non-relevant"
+        hue_order = [
+            f"{y} {x}" for x, y in product(["Non-relevant", "Relevant"], args.names)
+        ]
+    else:
+        df.loc[:, "Rel"] = "Rel=" + df.loc[:, "Rel"].astype(str)
+        hue_order = [f"{y} Rel={x}" for x, y in product(uniq_rel, args.names)]
+    df.loc[:, "SysRel"] = df["Sys"] + " " + df["Rel"].astype(str)
+    sns.histplot(
+        x="Score",
+        data=df,
+        hue="SysRel",
+        hue_order=hue_order,
+        palette=args.palette,
+        ax=ax,
+        kde=False,
+        element="step",
+        stat="density",
+        common_norm=False,
+        bins=args.bins,
+    )
+    ax.get_legend().set_title("")
     if isinstance(args.save, str):
         fig.tight_layout()
         fig.savefig(args.save)
