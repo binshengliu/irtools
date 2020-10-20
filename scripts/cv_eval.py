@@ -189,8 +189,10 @@ def load_evals_manual_folds(
     for one in files:
         stem = one.rsplit(".", maxsplit=1)[0]
         fold_match = re.search(r"[-_/]?fold=([^-_/]+)", stem)
-        assert fold_match is not None
-        fold = fold_match[1]
+        if fold_match is not None:
+            fold = fold_match[1]
+        else:
+            fold = "all"
 
         params = Params(one)
         with open(one, "r") as f:
