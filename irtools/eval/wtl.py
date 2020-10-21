@@ -2,6 +2,7 @@
 import argparse
 from typing import Dict, List
 
+import numpy as np
 import pandas as pd
 
 from .common import prepare_eval
@@ -27,22 +28,23 @@ def main() -> None:
     evals = prepare_eval(args)
 
     metrics = evals[0].columns
-    data: Dict[str, Dict[str, int]] = {}
+    data: Dict[str, Dict[str, str]] = {}
     for metric in metrics:
-        data[metric] = {"W": 0, "T": 0, "L": 0}
         df = pd.merge(
-            evals[1][metric], evals[0][metric], left_index=True, right_index=True
+            evals[0][metric], evals[1][metric], left_index=True, right_index=True
         )
-        data[metric]["W"] = (
-            df[f"{metric}_y"] > df[f"{metric}_x"] * (1 + args.threshold)
-        ).sum()
-        data[metric]["T"] = len(df) - data[metric]["W"] - data[metric]["L"]
-        data[metric]["L"] = (
-            df[f"{metric}_y"] < df[f"{metric}_x"] * (1 - args.threshold)
-        ).sum()
+        metricx = f"{metric}_x"
+        metricy = f"{metric}_y"
+
+        data.setdefault(metric, {})
+        wins = (df[metricy] > df[metricx] * (1 + args.threshold)).sum()
+        losses = (df[metricy] < df[metricx] * (1 - args.threshold)).sum()
+        ties = len(df) - wins - losses
+        data[metric]["Win"] = str(wins)
+        data[metric]["Tie"] = str(ties)
+        data[metric]["Loss"] = str(losses)
 
     df = pd.DataFrame.from_dict(data, orient="index")
-    df = df[["W", "T", "L"]]
     print(f"Threshold: {args.threshold}")
     print(df.to_string())
 
