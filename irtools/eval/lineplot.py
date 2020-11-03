@@ -25,8 +25,8 @@ def parse_arguments() -> argparse.Namespace:
         "--sort", choices=["ascending", "descending"], default="descending"
     )
     parser.add_argument("--sample", type=float)
-    parser.add_argument("--width", type=int, default=30)
-    parser.add_argument("--height", type=int, default=15)
+    parser.add_argument("--width", type=int, default=20)
+    parser.add_argument("--height", type=int, default=10)
     parser.add_argument("--palette", default="deep")
     parser.add_argument("--seed", type=int, default=0)
 
