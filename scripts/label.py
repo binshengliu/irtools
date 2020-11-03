@@ -42,6 +42,12 @@ def parse_arguments() -> argparse.Namespace:
         help="Sort documents in descending relevance order.",
     )
 
+    parser.add_argument(
+        "--unjudged-default",
+        default=0,
+        help="default judgments for unjudged documents",
+    )
+
     return parser.parse_args()
 
 
@@ -92,7 +98,7 @@ def main() -> None:
         line = re.sub(r"\s*#.*", "", line)
         delimeter = "\t" if "\t" in line else " "
         qno, dno, score, rank = parse_run_line(line)
-        rel = qrels.get(qno, {}).pop(dno, 0)
+        rel = qrels.get(qno, {}).pop(dno, args.unjudged_default)
 
         data.setdefault(qno, []).append((dno, rel, score, rank))
 
