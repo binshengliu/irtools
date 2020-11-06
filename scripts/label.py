@@ -6,6 +6,7 @@ from collections import OrderedDict
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+from tqdm import tqdm
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -94,7 +95,7 @@ def main() -> None:
     data: Dict[
         str, List[Tuple[str, int, Optional[float], Optional[int]]]
     ] = OrderedDict()
-    for line in args.input:
+    for line in tqdm(args.input, desc="Input"):
         line = re.sub(r"\s*#.*", "", line)
         delimeter = "\t" if "\t" in line else " "
         qno, dno, score, rank = parse_run_line(line)
@@ -103,7 +104,7 @@ def main() -> None:
         data.setdefault(qno, []).append((dno, rel, score, rank))
 
     if args.append_missing_relevant:
-        for qno in data.keys():
+        for qno in tqdm(data.keys(), desc="Add missing"):
             qno_scores = [x[2] for x in data[qno] if x[2] is not None]
             max_score = max(qno_scores) if qno_scores else None
             qno_ranks = [x[3] for x in data[qno] if x[3] is not None]
@@ -112,12 +113,12 @@ def main() -> None:
                 data[qno].append((dno, rel, max_score, min_rank))
 
     if args.sort_by_relevance:
-        for qno in data.keys():
+        for qno in tqdm(data.keys(), desc="Sort"):
             rel_array = np.array([x[1] for x in data[qno]])
             indexes = np.argsort(-rel_array, kind="stable")
             data[qno] = [data[qno][i] for i in indexes]
 
-    for qno, dno_rel in data.items():
+    for qno, dno_rel in tqdm(data.items(), desc="Output"):
         for dno, rel, score, rank in dno_rel:
             fields = [qno, dno]
             if rank is not None:
