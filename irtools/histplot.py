@@ -17,6 +17,10 @@ def comma_list(x: str) -> List[str]:
     return x.split(",")
 
 
+def comma_int_list(x: str) -> List[int]:
+    return [int(i) for i in x.split(",")]
+
+
 def exp_func(x: np.ndarray, a: float, b: float) -> np.ndarray:
     value = a * np.exp(-b * x)
     return value
@@ -98,12 +102,16 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=10)
     parser.add_argument("--palette", default="deep")
     parser.add_argument("--bins", type=bins_type, default="auto")
+    parser.add_argument("--annotate", default=[50, 75, 95], type=comma_int_list)
+    parser.add_argument("--y-log-scale", action="store_true")
+    parser.add_argument("--x-log-scale", action="store_true")
+    parser.add_argument("--xlabel", default="Value")
     parser.add_argument(
         "--stat",
         default="density",
         choices=["density", "frequency", "count", "probability"],
     )
-    parser.add_argument("--remove-tail", default=99, type=int)
+    parser.add_argument("--remove-tail", type=int)
 
     args = parser.parse_args()
     if not args.names:
@@ -116,16 +124,24 @@ def main() -> None:
     args = parse_arguments()
     seaborn_setup()
 
+    annotation_xy = []
     dfs = []
     for idx, one in enumerate(args.input):
         dftmp = pd.read_csv(one, names=["Value"], sep=args.sep, header=None)
-        perc95 = np.percentile(dftmp["Value"], 95)
-        args.names[idx] = f"{args.names[idx]}; 95%: {perc95:.0f}"
-        threshold = np.percentile(dftmp["Value"], args.remove_tail)
-        dftmp = dftmp[dftmp["Value"] < threshold]
+
+        args.names[idx] = f"{args.names[idx]}"
+        if args.remove_tail is not None:
+            threshold = np.percentile(dftmp["Value"], args.remove_tail)
+            dftmp = dftmp[dftmp["Value"] < threshold]
+
+        height, width = np.histogram(dftmp["Value"], bins=args.bins)
+        for q in args.annotate:
+            value = np.percentile(dftmp["Value"], q)
+            loc = ((width - value) > 0).nonzero()[0][0] - 1
+            annotation_xy.append((value, height[loc], q))
+
         dfs.append(dftmp)
     df = pd.concat(dfs, names=["Sys"], keys=args.names)
-    df = df[df["Value"] <= 4096 * 2]
     fig, axes = plt.subplots(1, 1, figsize=(args.width, args.height))
     ax = axes
     sns.histplot(
@@ -141,7 +157,24 @@ def main() -> None:
         common_norm=False,
         bins=args.bins,
     )
+    if args.x_log_scale:
+        ax.set_xscale("log")
+    if args.y_log_scale:
+        ax.set_yscale("log")
+
+    for x, y, v in annotation_xy:
+        ax.annotate(
+            f"{v}%: {x:.0f}",
+            (x, y),
+            ha="center",
+            va="center",
+            xytext=(0, 50),
+            textcoords="offset points",
+            size="xx-small",
+            arrowprops=dict(arrowstyle="-|>", color="black", connectionstyle="arc3"),
+        )
     ax.get_legend().set_title("")
+    ax.set_xlabel(args.xlabel)
     if isinstance(args.output, str):
         fig.tight_layout()
         fig.savefig(args.output)
