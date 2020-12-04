@@ -1,5 +1,6 @@
+import os
 from collections import abc
-from typing import Any, Dict, List, Mapping, Sequence, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 import numpy as np
 import torch
@@ -50,3 +51,51 @@ def masked_align(
     out = tensor.new_full(new_shape, pad)
     out[out_mask] = tensor[in_mask]
     return out
+
+
+def str_to_byte_tensor(
+    list_s: Sequence[str], max_len: int = -1, device: Any = None
+) -> torch.ByteTensor:
+    tensors = [
+        torch.tensor(  # type: ignore
+            list(bytes(s, "utf-8")),
+            dtype=torch.uint8,  # type: ignore
+            device=device,
+        )
+        for s in list_s
+    ]
+    max_len = max(max(x.shape[0] for x in tensors), max_len)
+    output: torch.ByteTensor = torch.zeros(  # type: ignore
+        (len(tensors), max_len), dtype=torch.uint8, device=device  # type: ignore
+    )
+    for i in range(output.shape[0]):
+        output[i][: tensors[i].shape[0]] = tensors[i]
+    return output
+
+
+def byte_tensor_to_str(input: torch.ByteTensor) -> List[str]:
+    output = []
+    for one in input:
+        one = one[one != 0]
+        string = bytes(one.tolist()).decode("utf-8")
+        output.append(string)
+    return output
+
+
+def all_gather_str(
+    v: Sequence[str], device: Any, world_size: Optional[int] = None
+) -> np.ndarray:
+    world_size = world_size or torch.distributed.get_world_size()  # type: ignore
+    t = str_to_byte_tensor(v, 32, device)
+    target = [t.new_zeros(t.shape) for _ in range(world_size)]
+    torch.distributed.all_gather(target, t)  # type: ignore
+    tensor = torch.cat(target)  # type: ignore
+    strings = np.array(byte_tensor_to_str(tensor))
+    return strings
+
+
+def all_gather(v: torch.Tensor, world_size: Optional[int] = None) -> torch.Tensor:
+    world_size = world_size or torch.distributed.get_world_size()  # type: ignore
+    target = [v.new_zeros(v.shape) for _ in range(world_size)]
+    torch.distributed.all_gather(target, v)  # type: ignore
+    return torch.cat(target)  # type: ignore
