@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="irtools",
-    version="1.12.0",
+    version="1.13.0",
     description="Utilities for IR research",
     author="Binsheng Liu",
     author_email="liubinsheng@gmail.com",
