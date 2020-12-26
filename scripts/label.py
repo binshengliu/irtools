@@ -95,7 +95,7 @@ def main() -> None:
     data: Dict[
         str, List[Tuple[str, int, Optional[float], Optional[int]]]
     ] = OrderedDict()
-    for line in tqdm(args.input, desc="Input"):
+    for line in tqdm(args.input, desc="Input", unit=" lines"):
         line = re.sub(r"\s*#.*", "", line)
         delimeter = "\t" if "\t" in line else " "
         qno, dno, score, rank = parse_run_line(line)
