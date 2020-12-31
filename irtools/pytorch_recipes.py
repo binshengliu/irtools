@@ -43,15 +43,15 @@ def masked_align(
     in_mask = mask.bool()
     length = in_mask.int().sum(dim=1)
     out_mask: torch.Tensor = torch.arange(  # type: ignore
-        length.max(), device=tensor.device
+        tensor.shape[1], device=tensor.device
     )
     out_mask = out_mask[None, :] < length[:, None]
-    if keep_shape:
-        new_shape = (*tensor.shape,)
-    else:
-        new_shape = (tensor.shape[0], length.max().item(), *tensor.shape[2:])
-    out = tensor.new_full(new_shape, pad)
+    out = tensor.new_zeros(tensor.shape)
     out[out_mask] = tensor[in_mask]
+    out[~out_mask] = tensor[~in_mask]
+
+    if not keep_shape:
+        out = out[:, : length.max()]  # type: ignore
     return out
 
 
@@ -75,12 +75,15 @@ def str_to_byte_tensor(
     return output
 
 
-def byte_tensor_to_str(input: torch.ByteTensor) -> List[str]:
+def byte_tensor_to_str(input: torch.Tensor) -> List[str]:
+    shape = input.shape
+    input = input.reshape(-1, shape[-1])
     output = []
     for one in input:
         one = one[one != 0]
         string = bytes(one.tolist()).decode("utf-8")
         output.append(string)
+    output = np.array(output).reshape(*shape[:-1]).tolist()
     return output
 
 
