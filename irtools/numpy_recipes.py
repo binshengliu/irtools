@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Callable, List, Optional, Sequence, Union
 
 import numpy as np
 
@@ -34,3 +34,20 @@ def len_to_mask(lens: np.ndarray, seq_len: Optional[int] = None) -> np.ndarray:
     if seq_len is None:
         seq_len = max(lens)
     return np.arange(seq_len)[None, :] < lens[:, None]
+
+
+def str_join(
+    sep: Union[str, Callable[[Sequence[str]], str]],
+    arrays: Sequence[np.ndarray],
+    axis: int = -1,
+) -> np.ndarray:
+    def join_func(x: Sequence[str]) -> List[str]:
+        if isinstance(sep, str):
+            return [sep.join(x)]
+        elif callable(sep):
+            return [sep(x)]
+        assert False
+
+    tmp = np.concatenate(arrays, axis=axis)
+    out = np.apply_along_axis(join_func, axis=axis, arr=tmp)
+    return out
