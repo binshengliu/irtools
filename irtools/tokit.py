@@ -1,7 +1,8 @@
-from transformers import AutoTokenizer, ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
-from multiprocessing import Pool
 from itertools import repeat
+from multiprocessing import Pool
+
 from tqdm import tqdm
+from transformers import ALL_PRETRAINED_CONFIG_ARCHIVE_MAP, AutoTokenizer
 
 
 def process_line(args):
@@ -18,7 +19,8 @@ def process_line(args):
             s,
             max_length=max_length,
             add_special_tokens=add_special_tokens,
-            pad_to_max_length=pad_to_max_length)
+            pad_to_max_length=pad_to_max_length,
+            truncation=True if max_length else False)
         if text:
             fields[f] = ' '.join([str(x) for x in s])
         else:

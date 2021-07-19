@@ -58,31 +58,26 @@ def masked_align(
 def str_to_byte_tensor(
     list_s: Sequence[str], max_len: int = -1, device: Any = None
 ) -> torch.ByteTensor:
-    tensors = [
-        torch.tensor(  # type: ignore
-            list(bytes(s, "utf-8")),
-            dtype=torch.uint8,  # type: ignore
-            device=device,
-        )
-        for s in list_s
-    ]
-    max_len = max(max(x.shape[0] for x in tensors), max_len)
-    output: torch.ByteTensor = torch.zeros(  # type: ignore
-        (len(tensors), max_len), dtype=torch.uint8, device=device  # type: ignore
+    max_len = max(max(len(x) for x in list_s), max_len)
+    output: torch.ByteTensor = torch.zeros(
+        (len(list_s), max_len), dtype=torch.uint8, device=device
     )
-    for i in range(output.shape[0]):
-        output[i][: tensors[i].shape[0]] = tensors[i]
+    for i in range(len(list_s)):
+        tensor = torch.tensor(list(bytes(list_s[i], "ascii")))
+        output[i][: len(tensor)] = tensor
+
     return output
 
 
 def byte_tensor_to_str(input: torch.Tensor) -> List[str]:
     shape = input.shape
     input = input.reshape(-1, shape[-1])
-    output = []
-    for one in input:
+    output = [""] * len(input)
+    lengths = (input != 0).sum(dim=-1).tolist()
+    for i, one in enumerate(input[input != 0].cpu().split(lengths)):
         one = one[one != 0]
-        string = bytes(one.tolist()).decode("utf-8")
-        output.append(string)
+        string = bytes(one.tolist()).decode("ascii")
+        output[i] = string
     output = np.array(output).reshape(*shape[:-1]).tolist()
     return output
 
