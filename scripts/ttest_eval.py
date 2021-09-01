@@ -4,7 +4,6 @@ import re
 from collections import OrderedDict, abc
 from io import StringIO
 from itertools import combinations
-from pprint import pprint
 from typing import Any, Dict, List, Set, Tuple
 
 import numpy as np
@@ -47,7 +46,8 @@ def parse_args() -> argparse.Namespace:
 
 def rbp_parse(line: str) -> Tuple[str, str, np.array]:
     match = re.match(
-        r"p= *(\d+\.\d+) *q= *(\w+) *d= *(\w+) *rbp= *(\d+\.\d+) *\+(\d+\.\d+)", line,
+        r"p= *(\d+\.\d+) *q= *(\w+) *d= *(\w+) *rbp= *(\d+\.\d+) *\+(\d+\.\d+)",
+        line,
     )
     assert match is not None
     rbp_p = match[1]
@@ -144,7 +144,8 @@ def main() -> None:
             scores.extend([qid_scores[qid][0] for qid in qids])
             groups.extend([name for qid in qids])
         print(f"# {metric} {1-args.alpha:.0%} confidence interval")
-        pprint(list(zip(args.names, means)))
+        for name, value in zip(args.names, means):
+            print(f"{name}: {value}")
         cmp_result = MultiComparison(scores, groups, np.array(args.names)).allpairtest(
             stats.ttest_rel, method=args.correction
         )[0]
