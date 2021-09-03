@@ -4,13 +4,18 @@ import re
 from collections import OrderedDict, abc
 from io import StringIO
 from itertools import combinations
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, TextIO, Tuple
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import statsmodels.stats.api as sms
 from scipy import stats
 from statsmodels.stats.multicomp import MultiComparison
+
+TParseRet = Tuple[bool, Optional[str], Optional[str], Optional[npt.NDArray[np.float64]]]
+
+TNpFloat = npt.NDArray[np.float64]
 
 
 def comma_list(x: str) -> List[str]:
@@ -44,7 +49,10 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def rbp_parse(line: str) -> Tuple[str, str, np.array]:
+def rbp_parse(line: str) -> TParseRet:
+    if line.startswith("#"):
+        return True, None, None, None
+
     match = re.match(
         r"p= *(\d+\.\d+) *q= *(\w+) *d= *(\w+) *rbp= *(\d+\.\d+) *\+(\d+\.\d+)",
         line,
@@ -56,16 +64,30 @@ def rbp_parse(line: str) -> Tuple[str, str, np.array]:
     rbp_value = float(match[4])
     rbp_res = float(match[5])
     metric = f"rbp_{rbp_p}@{depth}"
-    return metric, qid, np.array([rbp_value, rbp_res])
+    skip = qid == "all"
+    return skip, metric, qid, np.array([rbp_value, rbp_res])
 
 
-def trec_parse(line: str) -> Tuple[str, str, np.array]:
+def gdeval_parse(line: str) -> TParseRet:
+    if "runid" in line:
+        setattr(gdeval_parse, "metric", line.split(",")[2])
+        return True, None, None, None
+
+    splits = line.split(",")
+    qid = splits[1]
+    value = np.array([float(splits[2]), float(splits[3])])
+    skip = qid == "amean"
+    return skip, getattr(gdeval_parse, "metric", "ndcg"), qid, value
+
+
+def trec_parse(line: str) -> TParseRet:
     splits = line.split()
     metric, qid, value = splits[0], splits[1], np.array([float(splits[2])])
-    return metric, qid, value
+    skip = qid == "all"
+    return skip, metric, qid, value
 
 
-def format_value(x: np.ndarray, precision: int) -> Any:
+def format_value(x: TNpFloat, precision: int) -> Any:
     if isinstance(x, float):
         return f"{x:.{precision}f}"
     elif isinstance(x, np.ndarray):
@@ -80,33 +102,45 @@ def format_value(x: np.ndarray, precision: int) -> Any:
         return [format_value(cell, precision) for cell in x]
 
 
-def interval2str(interval: np.array, precision: int) -> str:
+def interval2str(interval: TNpFloat, precision: int) -> str:
     mean = np.mean(interval)
     diff = interval[1] - mean
     return f"{mean:.{precision}f}±{diff:.{precision}f}"
 
 
-def confint_mean(data: np.array, alpha: float, precision: int) -> List[str]:
+def confint_mean(data: npt.ArrayLike, alpha: float, precision: int) -> List[str]:
     cimean = np.array(sms.DescrStatsW(data).tconfint_mean(alpha=alpha))
     return [interval2str(x, precision) for x in cimean.T]
+
+
+def detect_eval(fp: TextIO) -> Callable[[str], TParseRet]:
+    pos = fp.tell()
+    line = fp.readline()
+    fp.seek(pos)
+
+    if "rbp=" in line:
+        parse_func = rbp_parse
+    elif "runid" in line:
+        parse_func = gdeval_parse
+    else:
+        parse_func = trec_parse
+    return parse_func
 
 
 def main() -> None:
     args = parse_args()
 
-    results: Dict[str, Dict[str, Dict[str, np.ndarray]]] = OrderedDict()
+    results: Dict[str, Dict[str, Dict[str, TNpFloat]]] = OrderedDict()
     file_metrics: Dict[str, Set[str]] = OrderedDict()
-    parse_func = trec_parse
+    parse_func = detect_eval(args.evals[0])
     for eval_ in args.evals:
         for line in eval_:
-            if line.startswith("#"):
+            skip, metric, qid, value = parse_func(line)
+            if skip:
                 continue
-            if "rbp=" in line:
-                parse_func = rbp_parse
-
-            metric, qid, value = parse_func(line)
-            if qid == "all":
-                continue
+            assert metric is not None
+            assert qid is not None
+            assert value is not None
             file_metrics.setdefault(eval_.name, set()).add(metric)
             results.setdefault(metric, OrderedDict())
             results[metric].setdefault(eval_.name, {})
@@ -144,8 +178,8 @@ def main() -> None:
             scores.extend([qid_scores[qid][0] for qid in qids])
             groups.extend([name for qid in qids])
         print(f"# {metric} {1-args.alpha:.0%} confidence interval")
-        for name, value in zip(args.names, means):
-            print(f"{name}: {value}")
+        for name, meanvalue in zip(args.names, means):
+            print(f"{name}: {meanvalue}")
         cmp_result = MultiComparison(scores, groups, np.array(args.names)).allpairtest(
             stats.ttest_rel, method=args.correction
         )[0]
@@ -164,8 +198,9 @@ def main() -> None:
 
         df_conf = df.copy()
         for (name0, group0), (name1, group1) in combinations(grouped_values, 2):
-            group_diff = np.array(group1) - np.array(group0)
+            group_diff: TNpFloat = np.array(group1) - np.array(group0)
             value = sms.DescrStatsW(group_diff).tconfint_mean(alpha=args.alpha)
+            assert value is not None
             df_conf.loc[
                 name0, name1
             ] = f"[{value[0]:.{args.precision}f},{value[1]:.{args.precision}f}]"
