@@ -116,14 +116,26 @@ class IndriRunQuery:
 
         return output
 
-    def run_batch(self, qnos, queries, working_set=None, extra={}, workers=1):
+    def run_batch(
+        self, qnos, queries, working_set=None, extra={}, workers=1, bar_position=None
+    ):
         if working_set is None:
             working_set = repeat(None)
+        else:
+            assert len(working_set) == len(qnos)
         with Pool(workers) as pool:
             results = pool.imap(
                 self.run_single, zip(qnos, queries, working_set, repeat(extra))
             )
-            results = list(tqdm(results, total=len(qnos)))
+            results = list(
+                tqdm(
+                    results,
+                    total=len(qnos),
+                    position=bar_position,
+                    leave=False,
+                    desc="indri",
+                )
+            )
         return results
 
     def run_distributed(self, qnos, queries, working_set=[], extra={}):
