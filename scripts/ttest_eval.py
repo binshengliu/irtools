@@ -118,7 +118,7 @@ def detect_eval(fp: TextIO) -> Callable[[str], TParseRet]:
     line = fp.readline()
     fp.seek(pos)
 
-    if "rbp=" in line:
+    if "rbp_eval" in line:
         parse_func = rbp_parse
     elif "runid" in line:
         parse_func = gdeval_parse
