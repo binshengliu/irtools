@@ -2,7 +2,6 @@
 import argparse
 from typing import Dict, List
 
-import numpy as np
 import pandas as pd
 
 from .common import prepare_eval
@@ -15,8 +14,6 @@ def comma_list(x: str) -> List[str]:
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("eval", nargs=2)
-    parser.add_argument("--save")
-    parser.add_argument("--names")
     parser.add_argument("--metric", type=comma_list)
     parser.add_argument("--threshold", type=float, default=0.1)
 
