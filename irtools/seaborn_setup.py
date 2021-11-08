@@ -1,8 +1,21 @@
+import math
 from typing import Union
 
 import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+
+def seaborn_setup_paper() -> None:
+    sns.set_theme("paper", "darkgrid", font="Linux Biolinum")
+
+
+def seaborn_setup_talk() -> None:
+    sns.set_theme("talk", "darkgrid", font="Linux Biolinum")
+
+
+def seaborn_setup_poster() -> None:
+    sns.set_theme("poster", "darkgrid", font="Linux Biolinum")
 
 
 def seaborn_setup() -> None:
@@ -33,7 +46,7 @@ def seaborn_setup() -> None:
         "legend.columnspacing": 0.1,
         "font.size": 44,
         "font.family": ["serif"],
-        "font.serif": ["Linux Libertine O"],
+        "font.serif": ["Linux Libertine"],
         "font.sans-serif": ["Computer Modern"],
         "axes.labelpad": 10.0,
         "xtick.major.pad": 10.0,
@@ -46,7 +59,7 @@ def seaborn_setup() -> None:
 
     plt.rcParams.update(fmt)
     sns.set_style("darkgrid")
-    plt.rcParams.update({"font.sans-serif": ["Linux Biolinum O"]})
+    plt.rcParams.update({"font.sans-serif": ["Linux Biolinum"]})
 
 
 def rotate_labels(ax: matplotlib.axes.Axes, which: str, rotation: float) -> None:
