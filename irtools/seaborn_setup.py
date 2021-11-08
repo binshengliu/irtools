@@ -59,9 +59,13 @@ def rotate_labels(ax: matplotlib.axes.Axes, which: str, rotation: float) -> None
 
 
 def annotate_bars(ax: matplotlib.axes.Axes, size: Union[str, int] = "small") -> None:
-    total = sum([p.get_height() for p in ax.patches])
+    if not ax.patches:
+        return
+    heights = [p.get_height() for p in ax.patches]
+    heights = [0 if math.isnan(x) else x for x in heights]
+    total = sum(heights)
     for p in ax.patches:
-        text = "{}({:.1%})".format(p.get_height(), p.get_height() / total)
+        text = "{} ({:.1%})".format(p.get_height(), p.get_height() / total)
         ax.annotate(
             text,
             (p.get_x() + p.get_width() / 2.0, p.get_height() + 0.05),
