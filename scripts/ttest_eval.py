@@ -157,8 +157,8 @@ def main() -> None:
         file_results = results[metric]
         union = set.union(*[set(x.keys()) for x in file_results.values()])
         inter = set.intersection(*[set(x.keys()) for x in file_results.values()])
-        if union != inter:
-            print(f"{metric} discarded ids: {sorted(union - inter)}")
+        # if union != inter:
+        #     print(f"{metric} discarded ids: {sorted(union - inter)}")
         for filename in file_results.keys():
             for id_ in union - inter:
                 file_results[filename].pop(id_, None)
