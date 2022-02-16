@@ -2,8 +2,6 @@
 import argparse
 import re
 from collections import OrderedDict, abc
-from io import StringIO
-from itertools import combinations
 from typing import Any, Callable, Dict, List, Optional, Set, TextIO, Tuple
 
 import numpy as np
@@ -16,6 +14,17 @@ from statsmodels.stats.multicomp import MultiComparison
 TParseRet = Tuple[bool, Optional[str], Optional[str], Optional[npt.NDArray[np.float64]]]
 
 TNpFloat = npt.NDArray[np.float64]
+
+
+def cohen_d(x, y):
+    """https://stackoverflow.com/a/33002123/955952"""
+    nx = len(x)
+    ny = len(y)
+    dof = nx + ny - 2
+
+    return (np.mean(x) - np.mean(y)) / np.sqrt(
+        ((nx - 1) * np.std(x, ddof=1) ** 2 + (ny - 1) * np.std(y, ddof=1) ** 2) / dof
+    )
 
 
 def comma_list(x: str) -> List[str]:
@@ -65,7 +74,7 @@ def rbp_parse(line: str) -> TParseRet:
     rbp_res = float(match[5])
     metric = f"rbp_{rbp_p}@{depth}"
     skip = qid == "all"
-    return skip, metric, qid, np.array([rbp_value, rbp_res])
+    return skip, metric, qid, [rbp_value, rbp_res]
 
 
 def gdeval_parse(line: str) -> TParseRet:
@@ -75,14 +84,14 @@ def gdeval_parse(line: str) -> TParseRet:
 
     splits = line.split(",")
     qid = splits[1]
-    value = np.array([float(splits[2]), float(splits[3])])
+    value = [float(splits[2]), float(splits[3])]
     skip = qid == "amean"
     return skip, getattr(gdeval_parse, "metric", "ndcg"), qid, value
 
 
 def trec_parse(line: str) -> TParseRet:
     splits = line.split()
-    metric, qid, value = splits[0], splits[1], np.array([float(splits[2])])
+    metric, qid, value = splits[0], splits[1], [float(splits[2])]
     skip = qid == "all"
     return skip, metric, qid, value
 
@@ -103,14 +112,12 @@ def format_value(x: TNpFloat, precision: int) -> Any:
 
 
 def interval2str(interval: TNpFloat, precision: int) -> str:
-    mean = np.mean(interval)
-    diff = interval[1] - mean
-    return f"{mean:.{precision}f}±{diff:.{precision}f}"
+    return f"({interval[0]:.{precision}f}, {interval[1]:.{precision}f})"
 
 
-def confint_mean(data: npt.ArrayLike, alpha: float, precision: int) -> List[str]:
+def confint_mean(data: npt.ArrayLike, alpha: float) -> List[str]:
     cimean = np.array(sms.DescrStatsW(data).tconfint_mean(alpha=alpha))
-    return [interval2str(x, precision) for x in cimean.T]
+    return cimean.T
 
 
 def detect_eval(fp: TextIO) -> Callable[[str], TParseRet]:
@@ -129,6 +136,7 @@ def detect_eval(fp: TextIO) -> Callable[[str], TParseRet]:
 
 def main() -> None:
     args = parse_args()
+    prec = args.precision
 
     results: Dict[str, Dict[str, Dict[str, TNpFloat]]] = OrderedDict()
     file_metrics: Dict[str, Set[str]] = OrderedDict()
@@ -153,7 +161,9 @@ def main() -> None:
         if diff:
             print(f"{filename}: disregard {sorted(diff)}")
 
+    print(f"Confidence level: {1-args.alpha:.0%}")
     for metric in sorted(common_metrics):
+        print(f"# {metric}")
         file_results = results[metric]
         union = set.union(*[set(x.keys()) for x in file_results.values()])
         inter = set.intersection(*[set(x.keys()) for x in file_results.values()])
@@ -162,51 +172,42 @@ def main() -> None:
         for filename in file_results.keys():
             for id_ in union - inter:
                 file_results[filename].pop(id_, None)
+        print(f"inter/union: {len(inter)}/{len(union)}")
 
         qids = sorted(inter)
         scores = []
         groups = []
         means = []
-        grouped_values = []
         for name, qid_scores in zip(args.names, file_results.values()):
-            grouped_values.append((name, [qid_scores[qid][0] for qid in qids]))
-            means.append(
-                confint_mean(
-                    [qid_scores[qid] for qid in qids], args.alpha, args.precision
-                )
+            current = np.array([qid_scores[qid] for qid in qids])
+            means = current.mean(axis=0, keepdims=False)
+            confint = confint_mean(current, args.alpha)
+            info = ", ".join(
+                [
+                    f"{x:.{prec}f} ({y[0]:.{prec}f}, {y[1]:.{prec}f})"
+                    for x, y in zip(means, confint)
+                ]
             )
+            print(f"{name} {metric} confint: {info}")
             scores.extend([qid_scores[qid][0] for qid in qids])
             groups.extend([name for qid in qids])
-        print(f"# {metric} {1-args.alpha:.0%} confidence interval")
-        for name, meanvalue in zip(args.names, means):
-            print(f"{name}: {meanvalue}")
+        # for name, meanvalue in zip(args.names, means):
+        #     print(f"{name}: {meanvalue}")
         cmp_result = MultiComparison(scores, groups, np.array(args.names)).allpairtest(
             stats.ttest_rel, method=args.correction
-        )[0]
+        )
 
-        results_as_csv = cmp_result.as_csv().split("\n")[3:]
-        assert "pval_corr" in results_as_csv[0]
-        df = pd.read_csv(StringIO("\n".join(results_as_csv)), header=0, index_col=False)
-        row_order = df.iloc[:, 0].unique()
-        column_order = df.iloc[:, 1].unique()
-        df = df.pivot(index=df.columns[0], columns=df.columns[1], values="pval_corr")
-        df = df.loc[row_order, column_order]
-        df.index = [x.strip() for x in df.index]
-        df.columns = [x.strip() for x in df.columns]
-        print(f"## ttest with {args.correction} correction")
-        print(df.to_string())
+        df = pd.DataFrame(cmp_result[0].data[1:], columns=cmp_result[0].data[0])
+        for idx, row in df.iterrows():
+            s1 = np.array([x for x, g in zip(scores, groups) if g == row["group1"]])
+            s2 = np.array([x for x, g in zip(scores, groups) if g == row["group2"]])
+            cohensd = cohen_d(s1, s2)
+            df.loc[idx, "cohen's d"] = cohensd
 
-        df_conf = df.copy()
-        for (name0, group0), (name1, group1) in combinations(grouped_values, 2):
-            group_diff: TNpFloat = np.array(group1) - np.array(group0)
-            value = sms.DescrStatsW(group_diff).tconfint_mean(alpha=args.alpha)
-            assert value is not None
-            df_conf.loc[
-                name0, name1
-            ] = f"[{value[0]:.{args.precision}f},{value[1]:.{args.precision}f}]"
-        print(f"## {1-args.alpha:.0%} confidence interval of the difference")
-        print(df_conf.to_string())
-        print()
+            cimean = sms.DescrStatsW(s1 - s2).tconfint_mean(alpha=args.alpha)
+            df.loc[idx, "diff confint"] = interval2str(cimean, prec)
+
+        print(df.to_string(index=False, float_format=lambda x: f"{x:.{prec}f}"))
 
 
 if __name__ == "__main__":
