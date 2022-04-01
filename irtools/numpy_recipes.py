@@ -51,3 +51,18 @@ def str_join(
     tmp = np.concatenate(arrays, axis=axis)
     out = np.apply_along_axis(join_func, axis=axis, arr=tmp)
     return out
+
+
+def pad_ragged(ragged_arrays: List[np.ndarray]) -> np.ndarray:
+    assert all(x.ndim == 1 for x in ragged_arrays)
+    count = np.array([x.size for x in ragged_arrays])
+    max_count = count.max()
+    pad_size = max_count - count
+    pad_loc = np.cumsum(count) - 1
+
+    arr = np.concatenate(ragged_arrays)
+    repeats = np.ones_like(arr, dtype=int)
+    repeats[pad_loc] = pad_size + 1
+    arr = np.repeat(arr, repeats)
+    arr = arr.reshape(len(ragged_arrays), max_count)
+    return arr
