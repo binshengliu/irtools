@@ -1,18 +1,20 @@
-from typing import Callable, List, Optional, Sequence, Union
+from typing import Any, Callable, List, Optional, Sequence, Union
 
 import numpy as np
+import numpy.typing as npt
+from scipy.sparse import csr_matrix
 
 
 # Copied from https://stackoverflow.com/a/56175538/955952
-def indep_roll(arr: np.ndarray, shifts: np.ndarray, axis: int = 1) -> np.ndarray:
+def indep_roll(arr: npt.NDArray[Any], shifts: npt.NDArray[Any], axis: int = 1) -> npt.NDArray[Any]:
     """Apply an independent roll for each dimensions of a single axis.
 
     Parameters
     ----------
-    arr : np.ndarray
+    arr : npt.NDArray[Any]
         Array of any shape.
 
-    shifts : np.ndarray
+    shifts : npt.NDArray[Any]
         How many shifting to use for each dimension. Shape: `(arr.shape[axis],)`.
 
     axis : int
@@ -30,7 +32,7 @@ def indep_roll(arr: np.ndarray, shifts: np.ndarray, axis: int = 1) -> np.ndarray
     return arr
 
 
-def len_to_mask(lens: np.ndarray, seq_len: Optional[int] = None) -> np.ndarray:
+def len_to_mask(lens: npt.NDArray[Any], seq_len: Optional[int] = None) -> npt.NDArray[Any]:
     if seq_len is None:
         seq_len = max(lens)
     return np.arange(seq_len)[None, :] < lens[:, None]
@@ -38,9 +40,9 @@ def len_to_mask(lens: np.ndarray, seq_len: Optional[int] = None) -> np.ndarray:
 
 def str_join(
     sep: Union[str, Callable[[Sequence[str]], str]],
-    arrays: Sequence[np.ndarray],
+    arrays: Sequence[npt.NDArray[Any]],
     axis: int = -1,
-) -> np.ndarray:
+) -> npt.NDArray[Any]:
     def join_func(x: Sequence[str]) -> List[str]:
         if isinstance(sep, str):
             return [sep.join(x)]
@@ -53,16 +55,26 @@ def str_join(
     return out
 
 
-def pad_ragged(ragged_arrays: List[np.ndarray]) -> np.ndarray:
+def pad_ragged(ragged_arrays: List[npt.NDArray[Any]]) -> npt.NDArray[Any]:
     assert all(x.ndim == 1 for x in ragged_arrays)
     count = np.array([x.size for x in ragged_arrays])
     max_count = count.max()
     pad_size = max_count - count
     pad_loc = np.cumsum(count) - 1
 
-    arr = np.concatenate(ragged_arrays)
+    arr: npt.NDArray[Any] = np.concatenate(ragged_arrays)
     repeats = np.ones_like(arr, dtype=int)
     repeats[pad_loc] = pad_size + 1
     arr = np.repeat(arr, repeats)
     arr = arr.reshape(len(ragged_arrays), max_count)
     return arr
+
+
+def tile_csr(X: csr_matrix, reps: int) -> csr_matrix:
+    rows = len(X.indptr) - 1
+    indptr = np.tile(X.indptr[None, 1:], (reps, 1))
+    indptr += (X.indptr[-1] * np.arange(reps))[:, None]
+    indptr = np.concatenate([[0], indptr.reshape(-1)])
+    assert rows * reps == len(indptr) - 1
+    X = csr_matrix((np.tile(X.data, reps), np.tile(X.indices, reps), indptr))
+    return X
