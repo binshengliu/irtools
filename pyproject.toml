@@ -1,0 +1,5 @@
+[tool.black]
+
+# https://github.com/psf/black#how-black-wraps-lines
+[tool.isort]
+profile = "black"
