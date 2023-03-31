@@ -6,7 +6,9 @@ from scipy.sparse import csr_matrix
 
 
 # Copied from https://stackoverflow.com/a/56175538/955952
-def indep_roll(arr: npt.NDArray[Any], shifts: npt.NDArray[Any], axis: int = 1) -> npt.NDArray[Any]:
+def indep_roll(
+    arr: npt.NDArray[Any], shifts: npt.NDArray[Any], axis: int = 1
+) -> npt.NDArray[Any]:
     """Apply an independent roll for each dimensions of a single axis.
 
     Parameters
@@ -32,7 +34,9 @@ def indep_roll(arr: npt.NDArray[Any], shifts: npt.NDArray[Any], axis: int = 1) -
     return arr
 
 
-def len_to_mask(lens: npt.NDArray[Any], seq_len: Optional[int] = None) -> npt.NDArray[Any]:
+def len_to_mask(
+    lens: npt.NDArray[Any], seq_len: Optional[int] = None
+) -> npt.NDArray[Any]:
     if seq_len is None:
         seq_len = max(lens)
     return np.arange(seq_len)[None, :] < lens[:, None]
